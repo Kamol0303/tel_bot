@@ -457,11 +457,23 @@ if __name__ == "__main__":
     print(f"Admin ID: {ADMIN_ID}")
     print("=" * 50)
 
+    try:
+        bot.remove_webhook(drop_pending_updates=True)
+        print("Webhook o'chirildi. Polling rejimi ishga tushmoqda...")
+    except Exception as e:
+        print(f"Webhook o'chirishda xatolik: {e}")
+
     while True:
         try:
             bot.infinity_polling(timeout=60, long_polling_timeout=60)
         except Exception as e:
             print(f"Xatolik: {e}")
             traceback.print_exc()
+            if "409" in str(e) or "webhook" in str(e).lower():
+                try:
+                    bot.remove_webhook(drop_pending_updates=True)
+                    print("Webhook qayta o'chirildi...")
+                except Exception:
+                    pass
             print("Qayta ulanish 5 soniyadan keyin...")
             time.sleep(5)
