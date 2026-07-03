@@ -236,6 +236,19 @@ def timer_thread(chat_id, msg_id, seconds=15):
             parse_mode="Markdown"
         )
 
+def ensure_user_state(chat_id):
+    if chat_id not in user_steps:
+        user_steps[chat_id] = {'step': 'lang_select'}
+    return user_steps[chat_id]
+
+
+def safe_answer_callback(call, text=""):
+    try:
+        bot.answer_callback_query(call.id, text)
+    except Exception:
+        pass
+
+
 def show_language_menu(chat_id):
     lang_markup = types.InlineKeyboardMarkup(row_width=3)
     lang_markup.add(
@@ -247,10 +260,50 @@ def show_language_menu(chat_id):
 
 
 def show_channels_menu(chat_id):
+    ensure_user_state(chat_id)
     welcome_text = get_text(chat_id, 'welcome')
     markup = build_main_menu()
-    bot.send_message(chat_id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+    try:
+        bot.send_message(chat_id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+    except Exception:
+        bot.send_message(chat_id, welcome_text, reply_markup=markup)
     user_steps[chat_id]['step'] = 'channels'
+
+
+def handle_language_selection(call):
+    chat_id = call.message.chat.id
+    lang = call.data.split('_', 1)[1]
+    if lang not in LANGUAGES:
+        safe_answer_callback(call, "⚠️ Noto'g'ri til")
+        return
+
+    user_lang[chat_id] = lang
+    ensure_user_state(chat_id)
+
+    lang_names = {'uz': "O'zbek", 'ru': 'Русский', 'en': 'English'}
+    safe_answer_callback(call, f"✅ {lang_names.get(lang, lang)}")
+
+    try:
+        bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+        pass
+
+    show_channels_menu(chat_id)
+    log_action(chat_id, "language_selected", lang)
+
+
+def handle_verify_subscription(call):
+    chat_id = call.message.chat.id
+    ensure_user_state(chat_id)
+    safe_answer_callback(call, "✅ Davom etilmoqda")
+
+    try:
+        bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+        pass
+
+    user_steps[chat_id]['step'] = 0
+    start_phone_flow(chat_id)
 
 
 # ============== /start HANDLER ==============
@@ -266,23 +319,24 @@ def start_handler(message):
 
     show_language_menu(chat_id)
 
-# ============== TIL TANLASH ==============
-@bot.callback_query_handler(func=lambda call: call.data.startswith('lang_'))
-def language_handler(call):
-    chat_id = call.message.chat.id
-    lang = call.data.split('_')[1]
-    user_lang[chat_id] = lang
 
-    lang_names = {'uz': "O'zbek", 'ru': 'Русский', 'en': 'English'}
-    bot.answer_callback_query(call.id, f"✅ {lang_names.get(lang, lang.upper())}")
+@bot.callback_query_handler(func=lambda call: call.data is not None)
+def callback_handler(call):
+    data = call.data
 
     try:
-        bot.delete_message(chat_id, call.message.message_id)
-    except Exception:
-        pass
+        if data.startswith('lang_'):
+            handle_language_selection(call)
+        elif data == 'verify_subs':
+            handle_verify_subscription(call)
+        elif data.startswith('admin_'):
+            handle_admin_callback(call)
+        else:
+            safe_answer_callback(call, "⚠️ /start bosing")
+    except Exception as e:
+        print(f"Callback xatolik [{data}]: {e}")
+        safe_answer_callback(call, "❌ Xatolik. /start bosing.")
 
-    show_channels_menu(chat_id)
-    log_action(chat_id, "language_selected", lang)
 
 # ============== OBUNA TASDIQLASH ==============
 def start_phone_flow(chat_id):
@@ -299,30 +353,6 @@ def start_phone_flow(chat_id):
     bot.register_next_step_handler(msg, get_phone_handler)
     log_action(chat_id, "subscription_verified")
 
-
-@bot.callback_query_handler(func=lambda call: call.data == "verify_subs")
-def verify_subs_handler(call):
-    chat_id = call.message.chat.id
-    bot.answer_callback_query(call.id, "✅ Davom etilmoqda")
-
-    try:
-        bot.delete_message(chat_id, call.message.message_id)
-    except Exception:
-        pass
-
-    user_steps[chat_id]['step'] = 0
-    start_phone_flow(chat_id)
-
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback_router(call):
-    if call.data.startswith('lang_'):
-        language_handler(call)
-        return
-    if call.data == 'verify_subs':
-        verify_subs_handler(call)
-        return
-    bot.answer_callback_query(call.id, "⚠️ Bu tugma ishlamayapti. /start bosing.")
 
 # ============== TELEFON RAQAM ==============
 def get_phone_handler(message):
@@ -674,14 +704,13 @@ def admin_panel(message):
     
     bot.send_message(chat_id, "👑 **Admin Panel**\n\nQuyidagi bo'limlardan birini tanlang:", parse_mode="Markdown", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('admin_'))
-def admin_callback(call):
+def handle_admin_callback(call):
     chat_id = call.message.chat.id
-    
+
     if chat_id != ADMIN_ID:
-        bot.answer_callback_query(call.id, "⛔ Ruxsat yo'q!")
+        safe_answer_callback(call, "⛔ Ruxsat yo'q!")
         return
-    
+
     action = call.data.split('_')[1]
     conn = get_db()
     c = conn.cursor()
@@ -778,9 +807,9 @@ def admin_callback(call):
                     bot.send_message(chat_id, log_text[i:i+4000], parse_mode="Markdown")
             else:
                 bot.send_message(chat_id, log_text, parse_mode="Markdown")
-    
+
     conn.close()
-    bot.answer_callback_query(call.id, "✅ Bajarildi!")
+    safe_answer_callback(call, "✅ Bajarildi!")
 
 # ============== MATNLI XABARLARNI USHLASH ==============
 @bot.message_handler(func=lambda message: True)
