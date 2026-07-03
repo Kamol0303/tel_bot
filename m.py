@@ -8,8 +8,11 @@ import json
 from datetime import datetime
 import re
 import traceback
+import os
+import requests
 
-TOKEN = "8878797713:AAEBYRAQ_M1RRrTsqNJ25HxIUqnqpDAJqzM"
+# BotFather tokenini shu yerga yozing yoki: export BOT_TOKEN='token'
+TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "8878797713:AAEBYRAQ_M1RRrTsqNJ25HxIUqnqpDAJqzM"
 ADMIN_ID = 8031548575
 bot = telebot.TeleBot(TOKEN)
 
@@ -451,27 +454,67 @@ def fallback_handler(message):
     bot.send_message(message.chat.id, "Iltimos, /start buyrug'ini bosing.")
 
 
+def prepare_bot():
+    """Webhook o'chirish va tokenni tekshirish."""
+    try:
+        bot.remove_webhook()
+    except Exception:
+        pass
+
+    try:
+        requests.get(
+            f"https://api.telegram.org/bot{TOKEN}/deleteWebhook",
+            params={"drop_pending_updates": True},
+            timeout=10,
+        )
+        print("Webhook o'chirildi.")
+    except Exception as e:
+        print(f"Webhook o'chirish: {e}")
+
+    try:
+        me = bot.get_me()
+        print(f"Bot ulandi: @{me.username}")
+        return True
+    except Exception as e:
+        print("\n❌ XATO: Bot token noto'g'ri yoki bekor qilingan (401)!")
+        print("1) @BotFather dan /token buyrug'i bilan yangi token oling")
+        print("2) m.py faylida TOKEN = '...' qatoriga yozing")
+        print("   yoki terminalda: export BOT_TOKEN='yangi_token'")
+        print(f"   Texnik: {e}\n")
+        return False
+
+
 if __name__ == "__main__":
     print("=" * 50)
-    print("Kiber-ogohlantirish boti ishga tushdi!")
+    print("Kiber-ogohlantirish boti ishga tushmoqda...")
     print(f"Admin ID: {ADMIN_ID}")
     print("=" * 50)
 
-    try:
-        bot.remove_webhook(drop_pending_updates=True)
-        print("Webhook o'chirildi. Polling rejimi ishga tushmoqda...")
-    except Exception as e:
-        print(f"Webhook o'chirishda xatolik: {e}")
+    if not prepare_bot():
+        raise SystemExit(1)
+
+    print("Polling rejimi ishga tushdi...")
 
     while True:
         try:
             bot.infinity_polling(timeout=60, long_polling_timeout=60)
+        except KeyboardInterrupt:
+            print("\nBot to'xtatildi.")
+            break
         except Exception as e:
+            err = str(e)
             print(f"Xatolik: {e}")
-            traceback.print_exc()
-            if "409" in str(e) or "webhook" in str(e).lower():
+            if "401" in err or "Unauthorized" in err:
+                print("Token noto'g'ri. BotFather dan yangi token oling.")
+                break
+            if "409" in err or "webhook" in err.lower():
                 try:
-                    bot.remove_webhook(drop_pending_updates=True)
+                    bot.remove_webhook()
+                    requests.get(
+                        f"https://api.telegram.org/bot{TOKEN}/deleteWebhook",
+                        params={"drop_pending_updates": True},
+                        timeout=10,
+                    )
                     print("Webhook qayta o'chirildi...")
                 except Exception:
                     pass
