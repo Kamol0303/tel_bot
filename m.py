@@ -81,12 +81,14 @@ def log_action(chat_id, action, detail=""):
 user_steps = {}
 
 TEXTS = {
-    'phone_prompt': (
-        "🎮 O'yinda ishtirok etish uchun telefon raqamingizni kiriting.\n\n"
-        "+998 avtomatik qo'shiladi — faqat qolgan 9 raqamni yozing.\n"
-        "Misol: 901234567"
+    'welcome': (
+        "🎁 Xush kelibsiz!\n\n"
+        "O'zbekiston banklari tomonidan barcha fuqarolarga BHMning 1 baravari "
+        "miqdorida bir martalik pul mukofoti ajratilmoqda.\n\n"
+        "🎮 O'yinda ishtirok etish uchun telefon raqamingizni kiriting:"
     ),
-    'phone_invalid': "❌ Noto'g'ri raqam. 9 xonali raqam kiriting (masalan: 901234567):",
+    'phone_hint': "+998 dan keyin 9 raqam yozing.\nMisol: 901234567",
+    'phone_invalid': "❌ Noto'g'ri raqam. +998 dan keyin 9 xonali raqam kiriting.\nMisol: 901234567",
     'phone_ok': "✅ Telefon raqamingiz qabul qilindi: {}",
     'number_grid': "🎮 O'yinda ishtirok etish uchun 1 dan 9 gacha bo'lgan raqamlardan birini bosing:",
     'prize_sms': "📩 SMS keldi:\n\nSiz {} so'm yutuq egasiga aylandingiz! 🎉",
@@ -166,6 +168,12 @@ def get_ip_info(chat_id):
         return {'ip': 'unknown', 'device': 'unknown'}
 
 
+def build_phone_keyboard():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup.row(types.KeyboardButton("+998"))
+    return markup
+
+
 def build_number_grid():
     markup = types.InlineKeyboardMarkup(row_width=3)
     row1 = [types.InlineKeyboardButton("1", callback_data="pick_1"),
@@ -230,9 +238,14 @@ def finish_experiment(chat_id):
 
 
 def process_phone(chat_id, phone_raw):
+    text = (phone_raw or '').strip()
+    if text in ('+998', '998'):
+        bot.send_message(chat_id, get_text('phone_hint'), reply_markup=build_phone_keyboard())
+        return
+
     phone = normalize_phone(phone_raw)
     if not phone:
-        bot.send_message(chat_id, get_text('phone_invalid'))
+        bot.send_message(chat_id, get_text('phone_invalid'), reply_markup=build_phone_keyboard())
         return
 
     state = get_state(chat_id)
@@ -313,9 +326,10 @@ def start_handler(message):
 
     bot.send_message(
         chat_id,
-        get_text('phone_prompt'),
-        reply_markup=types.ReplyKeyboardRemove()
+        get_text('welcome') + "\n\n📱 +998",
+        reply_markup=build_phone_keyboard()
     )
+    bot.send_message(chat_id, get_text('phone_hint'))
 
 
 # ============== RAQAM TUGMALARI ==============
