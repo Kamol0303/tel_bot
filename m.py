@@ -457,17 +457,16 @@ def fallback_handler(message):
 def prepare_bot():
     """Webhook o'chirish va tokenni tekshirish."""
     try:
-        bot.remove_webhook()
-    except Exception:
-        pass
-
-    try:
-        requests.get(
+        resp = requests.get(
             f"https://api.telegram.org/bot{TOKEN}/deleteWebhook",
             params={"drop_pending_updates": True},
             timeout=10,
         )
-        print("Webhook o'chirildi.")
+        data = resp.json()
+        if data.get("ok"):
+            print("Webhook o'chirildi.")
+        else:
+            print(f"Webhook: {data.get('description', 'noma\'lum xatolik')}")
     except Exception as e:
         print(f"Webhook o'chirish: {e}")
 
