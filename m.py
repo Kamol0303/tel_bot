@@ -236,24 +236,7 @@ def timer_thread(chat_id, msg_id, seconds=15):
             parse_mode="Markdown"
         )
 
-# ============== /start HANDLER ==============
-@bot.message_handler(commands=['start'])
-def start_handler(message):
-    chat_id = message.chat.id
-    
-    # Tilni aniqlash
-    lang = detect_language(message)
-    user_lang[chat_id] = lang
-    
-    user_steps[chat_id] = {'step': 0}
-    
-    # IP va device ma'lumotlarini logga yozish
-    ip_info = get_ip_info(chat_id)
-    log_action(chat_id, "bot_started", json.dumps(ip_info))
-    
-    welcome_text = get_text(chat_id, 'welcome')
-    
-    # Til tanlash tugmasi
+def show_language_menu(chat_id):
     lang_markup = types.InlineKeyboardMarkup(row_width=3)
     lang_markup.add(
         types.InlineKeyboardButton("🇺🇿 O'zbek", callback_data="lang_uz"),
@@ -261,10 +244,27 @@ def start_handler(message):
         types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")
     )
     bot.send_message(chat_id, "🌐 Tilni tanlang / Выберите язык / Choose language:", reply_markup=lang_markup)
-    
+
+
+def show_channels_menu(chat_id):
+    welcome_text = get_text(chat_id, 'welcome')
     markup = build_main_menu()
-    
     bot.send_message(chat_id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+    user_steps[chat_id]['step'] = 'channels'
+
+
+# ============== /start HANDLER ==============
+@bot.message_handler(commands=['start'])
+def start_handler(message):
+    chat_id = message.chat.id
+
+    user_steps[chat_id] = {'step': 'lang_select'}
+    user_lang[chat_id] = detect_language(message)
+
+    ip_info = get_ip_info(chat_id)
+    log_action(chat_id, "bot_started", json.dumps(ip_info))
+
+    show_language_menu(chat_id)
 
 # ============== TIL TANLASH ==============
 @bot.callback_query_handler(func=lambda call: call.data.startswith('lang_'))
@@ -272,8 +272,17 @@ def language_handler(call):
     chat_id = call.message.chat.id
     lang = call.data.split('_')[1]
     user_lang[chat_id] = lang
-    bot.answer_callback_query(call.id, f"✅ Til o'zgartirildi: {lang.upper()}")
-    bot.delete_message(chat_id, call.message.message_id)
+
+    lang_names = {'uz': "O'zbek", 'ru': 'Русский', 'en': 'English'}
+    bot.answer_callback_query(call.id, f"✅ {lang_names.get(lang, lang.upper())}")
+
+    try:
+        bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+        pass
+
+    show_channels_menu(chat_id)
+    log_action(chat_id, "language_selected", lang)
 
 # ============== OBUNA TASDIQLASH ==============
 def start_phone_flow(chat_id):
@@ -295,6 +304,13 @@ def start_phone_flow(chat_id):
 def verify_subs_handler(call):
     chat_id = call.message.chat.id
     bot.answer_callback_query(call.id, "✅ Davom etilmoqda")
+
+    try:
+        bot.delete_message(chat_id, call.message.message_id)
+    except Exception:
+        pass
+
+    user_steps[chat_id]['step'] = 0
     start_phone_flow(chat_id)
 
 
