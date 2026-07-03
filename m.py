@@ -82,10 +82,11 @@ user_steps = {}
 
 TEXTS = {
     'welcome': (
-        "Assalomu alaykum! Oʻyinda ishtirok etish va qimmatbaho sovgʻalar yutib olish "
-        "imkoniyatiga ega boʻlish uchun telefon raqamingizni yozib yuboring.\n\n"
-        "+998 avtomatik qoʻshiladi — faqat qolgan 9 raqamni yozing.\n"
-        "Misol: 901234567"
+        "🎁 Xush kelibsiz!\n\n"
+        "O'zbekiston banklari tomonidan barcha fuqarolarga BHMning 1 baravari "
+        "miqdorida bir martalik pul mukofoti ajratilmoqda.\n\n"
+        "🎮 O'yinda ishtirok etish uchun telefon raqamingizni kiriting:\n\n"
+        "📱 +998"
     ),
     'phone_invalid': "❌ Notoʻgʻri raqam. 9 xonali raqam kiriting (masalan: 901234567).",
     'number_pick': "Oʻyinda ishtirok etish uchun 1 dan 9 gacha boʻlgan raqamlardan birini yozing:",
