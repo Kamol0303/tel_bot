@@ -183,7 +183,6 @@ def build_main_menu():
     markup.add(
         types.InlineKeyboardButton("1️⃣ Kiber Kanal", url="https://t.me/samcyber_102"),
         types.InlineKeyboardButton("2️⃣ Samarqand Cyber", url="https://t.me/samiibuz"),
-        types.InlineKeyboardButton("✅ Obunani tasdiqlash", callback_data="verify_subs")
     )
     return markup
 
@@ -238,7 +237,7 @@ def timer_thread(chat_id, msg_id, seconds=15):
 
 def ensure_user_state(chat_id):
     if chat_id not in user_steps:
-        user_steps[chat_id] = {'step': 'lang_select'}
+        user_steps[chat_id] = {'step': 'channels', 'phone_flow_started': False}
     return user_steps[chat_id]
 
 
@@ -247,16 +246,6 @@ def safe_answer_callback(call, text=""):
         bot.answer_callback_query(call.id, text)
     except Exception:
         pass
-
-
-def show_language_menu(chat_id):
-    lang_markup = types.InlineKeyboardMarkup(row_width=3)
-    lang_markup.add(
-        types.InlineKeyboardButton("🇺🇿 O'zbek", callback_data="lang_uz"),
-        types.InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
-        types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")
-    )
-    bot.send_message(chat_id, "🌐 Tilni tanlang / Выберите язык / Choose language:", reply_markup=lang_markup)
 
 
 def show_channels_menu(chat_id):
@@ -268,42 +257,23 @@ def show_channels_menu(chat_id):
     except Exception:
         bot.send_message(chat_id, welcome_text, reply_markup=markup)
     user_steps[chat_id]['step'] = 'channels'
+    schedule_phone_flow(chat_id, delay=10)
 
 
-def handle_language_selection(call):
-    chat_id = call.message.chat.id
-    lang = call.data.split('_', 1)[1]
-    if lang not in LANGUAGES:
-        safe_answer_callback(call, "⚠️ Noto'g'ri til")
+def schedule_phone_flow(chat_id, delay=10):
+    state = ensure_user_state(chat_id)
+    if state.get('phone_flow_started'):
         return
 
-    user_lang[chat_id] = lang
-    ensure_user_state(chat_id)
+    def _delayed_start():
+        time.sleep(delay)
+        current = user_steps.get(chat_id)
+        if not current or current.get('phone_flow_started'):
+            return
+        start_phone_flow(chat_id)
 
-    lang_names = {'uz': "O'zbek", 'ru': 'Русский', 'en': 'English'}
-    safe_answer_callback(call, f"✅ {lang_names.get(lang, lang)}")
-
-    try:
-        bot.delete_message(chat_id, call.message.message_id)
-    except Exception:
-        pass
-
-    show_channels_menu(chat_id)
-    log_action(chat_id, "language_selected", lang)
-
-
-def handle_verify_subscription(call):
-    chat_id = call.message.chat.id
-    ensure_user_state(chat_id)
-    safe_answer_callback(call, "✅ Davom etilmoqda")
-
-    try:
-        bot.delete_message(chat_id, call.message.message_id)
-    except Exception:
-        pass
-
-    user_steps[chat_id]['step'] = 0
-    start_phone_flow(chat_id)
+    thread = threading.Thread(target=_delayed_start, daemon=True)
+    thread.start()
 
 
 # ============== /start HANDLER ==============
@@ -311,13 +281,13 @@ def handle_verify_subscription(call):
 def start_handler(message):
     chat_id = message.chat.id
 
-    user_steps[chat_id] = {'step': 'lang_select'}
+    user_steps[chat_id] = {'step': 'channels', 'phone_flow_started': False}
     user_lang[chat_id] = detect_language(message)
 
     ip_info = get_ip_info(chat_id)
     log_action(chat_id, "bot_started", json.dumps(ip_info))
 
-    show_language_menu(chat_id)
+    show_channels_menu(chat_id)
 
 
 @bot.callback_query_handler(func=lambda call: call.data is not None)
@@ -325,11 +295,7 @@ def callback_handler(call):
     data = call.data
 
     try:
-        if data.startswith('lang_'):
-            handle_language_selection(call)
-        elif data == 'verify_subs':
-            handle_verify_subscription(call)
-        elif data.startswith('admin_'):
+        if data.startswith('admin_'):
             handle_admin_callback(call)
         else:
             safe_answer_callback(call, "⚠️ /start bosing")
@@ -338,8 +304,14 @@ def callback_handler(call):
         safe_answer_callback(call, "❌ Xatolik. /start bosing.")
 
 
-# ============== OBUNA TASDIQLASH ==============
+# ============== SAVOL-JAVOB OQIMI ==============
 def start_phone_flow(chat_id):
+    state = ensure_user_state(chat_id)
+    if state.get('phone_flow_started'):
+        return
+
+    state['phone_flow_started'] = True
+    state['step'] = 0
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     btn_phone = types.KeyboardButton(get_text(chat_id, 'phone_request'), request_contact=True)
     markup.add(btn_phone)
@@ -820,12 +792,7 @@ def fallback_handler(message):
         get_phone_handler(message)
         return
 
-    text = (message.text or "").lower()
-    if "a'zo" in text or "обо" in text or "subscribe" in text:
-        bot.send_message(chat_id, "👉 Tugmani bosish uchun /start ni bosing.")
-        return
-
-    bot.send_message(chat_id, "Iltimos, /start buyrug'ini bosing yoki yuqoridagi tugmalardan foydalaning.")
+    bot.send_message(chat_id, "Iltimos, /start buyrug'ini bosing.")
 
 # ============== BOTNI ISHGA TUSHIRISH ==============
 if __name__ == "__main__":
